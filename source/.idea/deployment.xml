@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData">
+    <serverData>
+      <paths name="LocalUbuntuS390 (1c49be61-9035-4384-ab69-27058dc47bc0)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/bencz/IronNet/" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="MacG5 (d3760ad0-5ecc-4d6e-ae9d-55f5d1b3319f)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/bencz/IronNet/" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-macg5" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="MiniCloud (9f07798f-55d3-4c4b-b8c9-8fc924e1af80)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/debian/IronNet/" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-macg5" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-macg5" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
