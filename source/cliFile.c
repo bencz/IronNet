@@ -1,5 +1,6 @@
 #include "cliFile.h"
 #include "metadataStructures.h"
+#include "endian.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -60,13 +61,13 @@ CLIFile* CLIFile_Create(uint8_t* pData, uint32_t pLength, const char* pFilename)
 {
     PEDOSHeader* dosHeader = (PEDOSHeader*)pData;
 
-    if (dosHeader->Signature != CLIFILE__PE__DOS_Signature) 
+    if (dosHeader->Signature != CLIFILE__PE__DOS_Signature)
         return NULL;
 
     PENTHeader* ntHeader = (PENTHeader*)(pData + dosHeader->NextHeaderOffset);
-    if (ntHeader->Signature != CLIFILE__PE__NT_Signature) 
+    if (ntHeader->Signature != CLIFILE__PE__NT_Signature)
         return NULL;
-    if (ntHeader->Machine != CLIFILE__Machine) 
+    if (ntHeader->Machine != CLIFILE__Machine)
         return NULL;
 
     PEOptionalHeader* peOptionalHeader = (PEOptionalHeader*)(pData + dosHeader->NextHeaderOffset + sizeof(PENTHeader));

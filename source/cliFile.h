@@ -3,13 +3,19 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "endian.h"
 
-#define CLIFILE__PE__DOS_Signature								0x5A4D
-#define CLIFILE__PE__NT_Signature								0x00004550
-
-#define CLIFILE__Machine										0x014C
-
-#define CLIFILE__Metadata__Signature							0x424A5342
+#if BIG_ENDIAN
+    #define CLIFILE__PE__DOS_Signature								0x5A4D
+    #define CLIFILE__PE__NT_Signature								0x00004550
+    #define CLIFILE__Machine										0x014C
+    #define CLIFILE__Metadata__Signature							0x424A5342
+#else
+    #define CLIFILE__PE__DOS_Signature								0x5A4D
+    #define CLIFILE__PE__NT_Signature								0x00004550
+    #define CLIFILE__Machine										0x014C
+    #define CLIFILE__Metadata__Signature							0x424A5342
+#endif
 
 #define CLIFILE__Metadata__HeaderOffset_Signature				0x00
 #define CLIFILE__Metadata__HeaderOffset_MajorVersion			0x04
