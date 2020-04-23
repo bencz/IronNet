@@ -11,6 +11,9 @@
             <excludedPath local="true" path="$PROJECT_DIR$/vs" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
           </excludedPaths>
         </serverdata>
@@ -27,6 +30,7 @@
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
           </excludedPaths>
         </serverdata>
       </paths>

@@ -34,6 +34,7 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
     {
         token = CLIFile_ExpandMetadataToken(cliFile, cliFile->CLIHeader->EntryPointToken);
         method = (MethodDefinition*)token->Data;
+        printf("Entry point: %s.%s.%s\n\n", method->TypeDefinition->Namespace, method->TypeDefinition->Name, method->Name);
     }
     else
         method = (MethodDefinition*)methodToken->Data;
