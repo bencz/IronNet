@@ -1548,12 +1548,12 @@ uint8_t* MethodDefinition_Load(CLIFile* pFile, uint8_t* pTableData)
             pFile->MethodDefinitions[index].Body.LocalVariableSignatureToken = 0;
             if (pFile->MethodDefinitions[index].Body.Flags == MethodDefinitionBodyFlags_HeaderType_Fat)
             {
-                pFile->MethodDefinitions[index].Body.Flags = (*(uint16_t*)(methodBody + MethodDefinitionBody__Offset_Fat_Flags)) & MethodDefinitionBody_Fat_Flags_Mask;
-                methodBodySize = ((*(uint16_t*)(methodBody + MethodDefinitionBody__Offset_Fat_Flags)) >> MethodDefinitionBody_Fat_Flags_Bits) * MethodDefinitionBody_Fat_BodySize_Multiplier;
+                pFile->MethodDefinitions[index].Body.Flags = (READ16(methodBody + MethodDefinitionBody__Offset_Fat_Flags)) & MethodDefinitionBody_Fat_Flags_Mask;
+                methodBodySize = ((READ16(methodBody + MethodDefinitionBody__Offset_Fat_Flags)) >> MethodDefinitionBody_Fat_Flags_Bits) * MethodDefinitionBody_Fat_BodySize_Multiplier;
                 pFile->MethodDefinitions[index].Body.IsFat = true;
-                pFile->MethodDefinitions[index].Body.MaxStack = *(uint16_t*)(methodBody + MethodDefinitionBody__Offset_Fat_MaxStack);
-                pFile->MethodDefinitions[index].Body.CodeSize = *(uint32_t*)(methodBody + MethodDefinitionBody__Offset_Fat_CodeSize);
-                pFile->MethodDefinitions[index].Body.LocalVariableSignatureToken = *(uint32_t*)(methodBody + MethodDefinitionBody__Offset_Fat_LocalVariableSignatureToken);
+                pFile->MethodDefinitions[index].Body.MaxStack = READ16(methodBody + MethodDefinitionBody__Offset_Fat_MaxStack);
+                pFile->MethodDefinitions[index].Body.CodeSize = READ32(methodBody + MethodDefinitionBody__Offset_Fat_CodeSize);
+                pFile->MethodDefinitions[index].Body.LocalVariableSignatureToken = READ32(methodBody + MethodDefinitionBody__Offset_Fat_LocalVariableSignatureToken);
             }
             pFile->MethodDefinitions[index].Body.Code = methodBody + methodBodySize;
             //printf("Method: %s, RVA: %u, HeaderSize: %u, CodeSize: %u\n", pFile->MethodDefinitions[index].Name, (unsigned int)methodBodyVirtualAddress, (unsigned int)methodBodySize, (unsigned int)pFile->MethodDefinitions[index].Body.CodeSize);
@@ -1572,7 +1572,7 @@ uint8_t* MethodDefinition_Load(CLIFile* pFile, uint8_t* pTableData)
                     bool methodDataFlagsExceptions = (methodDataFlags & MethodDefinitionDataFlags_ExceptionTable) != 0;
                     bool methodDataFlagsFat = (methodDataFlags & MethodDefinitionDataFlags_Fat) != 0;
                     bool methodDataFlagsHasData = (methodDataFlags & MethodDefinitionDataFlags_HasAnotherDataSection) != 0;
-                    if (methodDataFlagsFat) methodDataSize = (*(uint32_t*)(methodData + MethodDefinitionData__Offset_Size)) & MethodDefinitionData_Fat_Size_Mask;
+                    if (methodDataFlagsFat) methodDataSize = (READ32(methodData + MethodDefinitionData__Offset_Size)) & MethodDefinitionData_Fat_Size_Mask;
 
                     if (methodDataFlagsExceptions)
                     {
@@ -1600,7 +1600,7 @@ uint8_t* MethodDefinition_Load(CLIFile* pFile, uint8_t* pTableData)
                         bool methodDataFlagsExceptions = (methodDataFlags & MethodDefinitionDataFlags_ExceptionTable) != 0;
                         bool methodDataFlagsFat = (methodDataFlags & MethodDefinitionDataFlags_Fat) != 0;
                         bool methodDataFlagsHasData = (methodDataFlags & MethodDefinitionDataFlags_HasAnotherDataSection) != 0;
-                        if (methodDataFlagsFat) methodDataSize = (*(uint32_t*)(methodData + MethodDefinitionData__Offset_Size)) & MethodDefinitionData_Fat_Size_Mask;
+                        if (methodDataFlagsFat) methodDataSize = (READ32(methodData + MethodDefinitionData__Offset_Size)) & MethodDefinitionData_Fat_Size_Mask;
 
                         if (methodDataFlagsExceptions)
                         {
@@ -1610,21 +1610,21 @@ uint8_t* MethodDefinition_Load(CLIFile* pFile, uint8_t* pTableData)
                             for (uint32_t methodDataExceptionIndex = 0; methodDataExceptionIndex < methodDataExceptionCount; ++methodDataExceptionIndex)
                             {
                                 uint32_t methodDataExceptionOffset = methodDataExceptionIndex * MethodDefinitionException__HeaderLength;
-                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].Flags = *(uint16_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Flags);
-                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryOffset = *(uint16_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_TryOffset);
+                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].Flags = READ16(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Flags);
+                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryOffset = READ16(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_TryOffset);
                                 pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryLength = *(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_TryLength);
-                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerOffset = *(uint16_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_HandlerOffset);
+                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerOffset = READ16(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_HandlerOffset);
                                 pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerLength = *(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_HandlerLength);
-                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].ClassTokenOrFilterOffset = *(uint32_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_ClassTokenOrFilterOffset);
+                                pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].ClassTokenOrFilterOffset = READ32(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_ClassTokenOrFilterOffset);
                                 if (methodDataFlagsFat)
                                 {
                                     methodDataExceptionOffset = methodDataExceptionIndex * MethodDefinitionException__Fat_HeaderLength;
-                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].Flags = *(uint16_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_Flags);
-                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryOffset = *(uint16_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_TryOffset);
+                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].Flags = READ16(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_Flags);
+                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryOffset = READ16(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_TryOffset);
                                     pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryLength = *(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_TryLength);
-                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerOffset = *(uint16_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_HandlerOffset);
+                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerOffset = READ16(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_HandlerOffset);
                                     pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerLength = *(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_HandlerLength);
-                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].ClassTokenOrFilterOffset = *(uint32_t*)(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_ClassTokenOrFilterOffset);
+                                    pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].ClassTokenOrFilterOffset = READ32(methodDataException + methodDataExceptionOffset + MethodDefinitionException__Offset_Fat_ClassTokenOrFilterOffset);
                                 }
                                 //printf("    Exception, Flags: 0x%x, TryOffset: %u, TryLength: %u, HandlerOffset: %u, HandlerLength: %u, ClassTokenOrFilterOffset: %u\n", (unsigned int)pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].Flags, (unsigned int)pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryOffset, (unsigned int)pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].TryLength, (unsigned int)pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerOffset, (unsigned int)pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].HandlerLength, (unsigned int)pFile->MethodDefinitions[index].Exceptions[methodExceptionIndex].ClassTokenOrFilterOffset);
                                 ++methodExceptionIndex;
@@ -3271,7 +3271,7 @@ void CustomAttributeSignature_Destroy(CustomAttributeSignature* pCustomAttribute
 
 //uint8_t* CustomAttributeSignature_Parse(uint8_t* pCursor, CustomAttributeSignature** pCustomAttributeSignature, CustomAttribute* pCustomAttribute, CLIFile* pCLIFile, AppDomain* pDomain)
 //{
-//    if (*(uint16_t*)pCursor != 0x0001) Panic("Invalid CustomAttributeSignature Prolog");
+//    if (READ16(pCursor) != 0x0001) Panic("Invalid CustomAttributeSignature Prolog");
 //    pCursor += 2;
 //    *pCustomAttributeSignature = CustomAttributeSignature_Create();
 //    CustomAttributeSignature* customAttributeSignature = *pCustomAttributeSignature;
@@ -3305,7 +3305,7 @@ void CustomAttributeSignature_Destroy(CustomAttributeSignature* pCustomAttribute
 //            {
 //                customAttributeSignature->FixedArgs[index].SecondaryType = (SignatureElementType)constructorMethod->SignatureCache->Parameters[index]->Type->SZArrayType->ElementType;
 //                CustomAttributeSignature_CheckClassElementType(pDomain, constructorMethod->File, &customAttributeSignature->FixedArgs[index], constructorMethod->SignatureCache->Parameters[index]->Type->SZArrayType, &customAttributeSignature->FixedArgs[index].SecondaryType);
-//                customAttributeSignature->FixedArgs[index].ElementCount = *(uint32_t*)pCursor;
+//                customAttributeSignature->FixedArgs[index].ElementCount = READ32(pCursor);
 //                pCursor += 4;
 //                if (customAttributeSignature->FixedArgs[index].ElementCount)
 //                {
@@ -3326,7 +3326,7 @@ void CustomAttributeSignature_Destroy(CustomAttributeSignature* pCustomAttribute
 //            }
 //        }
 //    }
-//    /*customAttributeSignature->NamedArgCount = *(uint16_t*)pCursor;
+//    /*customAttributeSignature->NamedArgCount = READ16(pCursor);
 //    pCursor += 2;
 //    if (customAttributeSignature->NamedArgCount)
 //    {
@@ -3408,7 +3408,7 @@ uint8_t* SignatureElement_Parse(uint8_t* pCursor, SignatureArg* pSignatureArg, M
         pCursor++;
         break;
     case SignatureElementType_Char:
-        pSignatureElement->Char.Value = *(uint16_t*)pCursor;
+        pSignatureElement->Char.Value = READ16(pCursor);
         pCursor += 2;
         break;
     case SignatureElementType_I2:
@@ -3416,7 +3416,7 @@ uint8_t* SignatureElement_Parse(uint8_t* pCursor, SignatureArg* pSignatureArg, M
         pCursor += 2;
         break;
     case SignatureElementType_U2:
-        pSignatureElement->UShort.Value = *(uint16_t*)pCursor;
+        pSignatureElement->UShort.Value = READ16(pCursor);
         pCursor += 2;
         break;
     case SignatureElementType_I4:
@@ -3424,11 +3424,11 @@ uint8_t* SignatureElement_Parse(uint8_t* pCursor, SignatureArg* pSignatureArg, M
         pCursor += 4;
         break;
     case SignatureElementType_U4:
-        pSignatureElement->UInt.Value = *(uint32_t*)pCursor;
+        pSignatureElement->UInt.Value = READ32(pCursor);
         pCursor += 4;
         break;
     case SignatureElementType_R4:
-        pSignatureElement->Single.Value = *(uint32_t*)pCursor;
+        pSignatureElement->Single.Value = READ32(pCursor);
         pCursor += 4;
         break;
     case SignatureElementType_I8:
@@ -3483,7 +3483,7 @@ uint8_t* SignatureElement_Parse(uint8_t* pCursor, SignatureArg* pSignatureArg, M
             pCursor += 2;
             break;
         case SignatureElementType_U2:
-            pSignatureElement->Enum.Value.UShort.Value = *(uint16_t*)pCursor;
+            pSignatureElement->Enum.Value.UShort.Value = READ16(pCursor);
             pCursor += 2;
             break;
         case SignatureElementType_I4:
@@ -3491,7 +3491,7 @@ uint8_t* SignatureElement_Parse(uint8_t* pCursor, SignatureArg* pSignatureArg, M
             pCursor += 4;
             break;
         case SignatureElementType_U4:
-            pSignatureElement->Enum.Value.UInt.Value = *(uint32_t*)pCursor;
+            pSignatureElement->Enum.Value.UInt.Value = READ32(pCursor);
             pCursor += 4;
             break;
         case SignatureElementType_I8:
