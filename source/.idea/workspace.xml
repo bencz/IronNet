@@ -13,8 +13,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e58cb89f-1698-42e5-8b16-b32e4f627037" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/stringHelper.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cliFile.c" beforeDir="false" afterPath="$PROJECT_DIR$/cliFile.c" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,7 +24,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug-MiniCloud" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug-Localppc64" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
@@ -72,7 +72,7 @@
       <workItem from="1587612109606" duration="486000" />
       <workItem from="1587612726316" duration="505000" />
       <workItem from="1587613251741" duration="4100000" />
-      <workItem from="1587623190074" duration="6895000" />
+      <workItem from="1587623190074" duration="7366000" />
     </task>
     <servers />
   </component>
@@ -104,22 +104,22 @@
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="740" y="261" key="FileChooserDialogImpl/0.0.1920.1040@0.0.1920.1040" timestamp="1587613336476" />
-    <state width="1877" height="282" key="GridCell.Tab.0.bottom" timestamp="1587631047611">
+    <state width="1877" height="282" key="GridCell.Tab.0.bottom" timestamp="1587631719328">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="282" key="GridCell.Tab.0.bottom/0.0.1920.1040@0.0.1920.1040" timestamp="1587631047611" />
-    <state width="1877" height="282" key="GridCell.Tab.0.center" timestamp="1587631047611">
+    <state width="1877" height="282" key="GridCell.Tab.0.bottom/0.0.1920.1040@0.0.1920.1040" timestamp="1587631719328" />
+    <state width="1877" height="282" key="GridCell.Tab.0.center" timestamp="1587631719328">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="282" key="GridCell.Tab.0.center/0.0.1920.1040@0.0.1920.1040" timestamp="1587631047611" />
-    <state width="1877" height="282" key="GridCell.Tab.0.left" timestamp="1587631047610">
+    <state width="1877" height="282" key="GridCell.Tab.0.center/0.0.1920.1040@0.0.1920.1040" timestamp="1587631719328" />
+    <state width="1877" height="282" key="GridCell.Tab.0.left" timestamp="1587631719328">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="282" key="GridCell.Tab.0.left/0.0.1920.1040@0.0.1920.1040" timestamp="1587631047610" />
-    <state width="1877" height="282" key="GridCell.Tab.0.right" timestamp="1587631047611">
+    <state width="1877" height="282" key="GridCell.Tab.0.left/0.0.1920.1040@0.0.1920.1040" timestamp="1587631719328" />
+    <state width="1877" height="282" key="GridCell.Tab.0.right" timestamp="1587631719328">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="282" key="GridCell.Tab.0.right/0.0.1920.1040@0.0.1920.1040" timestamp="1587631047611" />
+    <state width="1877" height="282" key="GridCell.Tab.0.right/0.0.1920.1040@0.0.1920.1040" timestamp="1587631719328" />
     <state width="1877" height="348" key="GridCell.Tab.1.bottom" timestamp="1587630978978">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
@@ -162,7 +162,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/cliFile.c</url>
-          <line>306</line>
+          <line>307</line>
           <option name="timeStamp" value="8" />
         </line-breakpoint>
       </breakpoints>

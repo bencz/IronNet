@@ -1,6 +1,7 @@
 #include "cliFile.h"
 #include "metadataStructures.h"
 #include "endian.h"
+#include "stringHelper.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -206,7 +207,7 @@ CLIFile* CLIFile_Create(uint8_t* pData, uint32_t pLength, const char* pFilename)
 	uint8_t* streamIterator = streamStart;
 	for (uint16_t streamIndex = 0; streamIndex < streamCount; ++streamIndex)
 	{
-		char* streamName = (char*)(streamIterator + CLIFILE__Metadata__StreamOffset_Name);
+		const char* streamName = GETSTRING(streamIterator + CLIFILE__Metadata__StreamOffset_Name);
 		uint8_t* streamData = cliMetadataHeader + READ32(streamIterator + CLIFILE__Metadata__StreamOffset_RVA);
 
 		if (!strcmp(streamName, "#~"))
