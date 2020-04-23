@@ -2,46 +2,31 @@
 <project version="4">
   <component name="PublishConfigData">
     <serverData>
-      <paths name="LocalUbuntuS390 (1c49be61-9035-4384-ab69-27058dc47bc0)">
+      <paths name="Localppc64 (0933393e-dc24-4ff8-b4ae-83f8b5a3b5a4)">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/bencz/IronNet/" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/bencz/IronNet" local="$PROJECT_DIR$" web="/" />
           </mappings>
           <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+            <excludedPath local="true" path="$PROJECT_DIR$/vs" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
           </excludedPaths>
         </serverdata>
       </paths>
-      <paths name="MacG5 (d3760ad0-5ecc-4d6e-ae9d-55f5d1b3319f)">
+      <paths name="MiniCloud (55df5c51-7243-4e20-83ff-ae7ef1b44636)">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/bencz/IronNet/" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/debian/IronNet" local="$PROJECT_DIR$" web="/" />
           </mappings>
           <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-macg5" />
+            <excludedPath local="true" path="$PROJECT_DIR$/vs" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
-      <paths name="MiniCloud (9f07798f-55d3-4c4b-b8c9-8fc924e1af80)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/debian/IronNet/" local="$PROJECT_DIR$" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-macg5" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-macg5" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localubuntus390" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
           </excludedPaths>
         </serverdata>
       </paths>

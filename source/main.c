@@ -8,7 +8,7 @@ int main()
 {
 	uint32_t pFileLen = 0;
 
-	FILE* f = fopen("test.exe", "rb");
+	FILE* f = fopen("testTypes.exe", "rb");
 	fseek(f, 0, SEEK_END);
 	pFileLen = ftell(f);
 	fseek(f, 0, SEEK_SET);

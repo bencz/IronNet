@@ -23,6 +23,7 @@ bld/
 [Oo]bj/
 [Oo]utput/
 [Pp]ackages
+source/cmake*/
 
 # Visual Studio 2015 cache/options directory
 .vs/

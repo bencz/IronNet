@@ -7,14 +7,25 @@
   </component>
   <component name="CMakeSettings">
     <configurations>
-      <configuration PROFILE_NAME="Debug-LocalUbuntuS390" CONFIG_NAME="Debug" TOOLCHAIN_NAME="LocalUbuntuS390" />
       <configuration PROFILE_NAME="Debug-MiniCloud" CONFIG_NAME="Debug" TOOLCHAIN_NAME="MiniCloud" />
-      <configuration PROFILE_NAME="Debug" CONFIG_NAME="Debug" />
-      <configuration PROFILE_NAME="Debug-MacG5" CONFIG_NAME="Debug" TOOLCHAIN_NAME="MacG5" />
+      <configuration PROFILE_NAME="Debug-Localppc64" CONFIG_NAME="Debug" TOOLCHAIN_NAME="Localppc64" />
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e58cb89f-1698-42e5-8b16-b32e4f627037" name="Default Changelist" comment="" />
+    <list default="true" id="e58cb89f-1698-42e5-8b16-b32e4f627037" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/deployment.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/other.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/other.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cliFile.c" beforeDir="false" afterPath="$PROJECT_DIR$/cliFile.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cliFile.h" beforeDir="false" afterPath="$PROJECT_DIR$/cliFile.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/endian.h" beforeDir="false" afterPath="$PROJECT_DIR$/endian.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/main.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/empty" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -23,20 +34,27 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug-MiniCloud" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug-Localppc64" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
   <component name="ProjectId" id="1aSW6yZiC9p6Bp672r3t9PVKsdr" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
-    <option name="showExcludedFiles" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="true" />
-    <property name="settings.editor.selected.configurable" value="CMakeSettings" />
+    <property name="cf.first.check.clang-format" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/vs" />
+    <property name="settings.editor.selected.configurable" value="CPPToolchains" />
   </component>
   <component name="RunManager">
-    <configuration name="IronNet" type="CMakeRunConfiguration" factoryName="Application" WORKING_DIR="file://../" PASS_PARENT_ENVS_2="true" PROJECT_NAME="IronNet" TARGET_NAME="IronNet" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="IronNet" RUN_TARGET_NAME="IronNet">
+    <configuration name="IronNet" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" WORKING_DIR="file://../tests/" PASS_PARENT_ENVS_2="true" PROJECT_NAME="IronNet" TARGET_NAME="IronNet" CONFIG_NAME="Debug-MiniCloud" RUN_TARGET_PROJECT_NAME="IronNet" RUN_TARGET_NAME="IronNet">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
@@ -60,73 +78,86 @@
       <workItem from="1586968004824" duration="636000" />
       <workItem from="1587093082063" duration="24000" />
       <workItem from="1587094160332" duration="119000" />
+      <workItem from="1587611643895" duration="441000" />
+      <workItem from="1587612109606" duration="486000" />
+      <workItem from="1587612726316" duration="505000" />
+      <workItem from="1587613251741" duration="4100000" />
+      <workItem from="1587623190074" duration="3603000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
-    <option name="version" value="1" />
+    <option name="version" value="2" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="414" y="175" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1586914923031">
+    <state x="536" y="162" key="#SSH_Configurations" timestamp="1587623432493">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="414" y="175" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1586914923031" />
+    <state x="536" y="162" key="#SSH_Configurations/0.0.1920.1040@0.0.1920.1040" timestamp="1587623432493" />
+    <state x="414" y="175" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1587613509761">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="414" y="175" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1587613509761" />
     <state x="858" y="273" key="#xdebugger.XInspectDialog" timestamp="1586748398577">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="858" y="273" key="#xdebugger.XInspectDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1586748398577" />
-    <state width="685" height="466" key="DebuggerActiveHint" timestamp="1586748988486">
+    <state width="685" height="466" key="DebuggerActiveHint" timestamp="1587626340577">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="685" height="466" key="DebuggerActiveHint/0.0.1920.1040@0.0.1920.1040" timestamp="1586748988486" />
+    <state width="685" height="466" key="DebuggerActiveHint/0.0.1920.1040@0.0.1920.1040" timestamp="1587626340577" />
     <state x="714" y="203" key="ExperimentsDialog" timestamp="1586748548738">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="714" y="203" key="ExperimentsDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1586748548738" />
-    <state x="740" y="261" key="FileChooserDialogImpl" timestamp="1586891385033">
+    <state x="740" y="261" key="FileChooserDialogImpl" timestamp="1587613336476">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="740" y="261" key="FileChooserDialogImpl/0.0.1920.1040@0.0.1920.1040" timestamp="1586891385033" />
-    <state width="1877" height="348" key="GridCell.Tab.0.bottom" timestamp="1587094278937">
+    <state x="740" y="261" key="FileChooserDialogImpl/0.0.1920.1040@0.0.1920.1040" timestamp="1587613336476" />
+    <state width="1877" height="348" key="GridCell.Tab.0.bottom" timestamp="1587626202912">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.0.bottom/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278937" />
-    <state width="1877" height="348" key="GridCell.Tab.0.center" timestamp="1587094278937">
+    <state width="1877" height="348" key="GridCell.Tab.0.bottom/0.0.1920.1040@0.0.1920.1040" timestamp="1587626202912" />
+    <state width="1877" height="348" key="GridCell.Tab.0.center" timestamp="1587626202912">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.0.center/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278937" />
-    <state width="1877" height="348" key="GridCell.Tab.0.left" timestamp="1587094278937">
+    <state width="1877" height="348" key="GridCell.Tab.0.center/0.0.1920.1040@0.0.1920.1040" timestamp="1587626202912" />
+    <state width="1877" height="348" key="GridCell.Tab.0.left" timestamp="1587626202912">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.0.left/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278937" />
-    <state width="1877" height="348" key="GridCell.Tab.0.right" timestamp="1587094278937">
+    <state width="1877" height="348" key="GridCell.Tab.0.left/0.0.1920.1040@0.0.1920.1040" timestamp="1587626202912" />
+    <state width="1877" height="348" key="GridCell.Tab.0.right" timestamp="1587626202912">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.0.right/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278937" />
-    <state width="1877" height="348" key="GridCell.Tab.1.bottom" timestamp="1587094278938">
+    <state width="1877" height="348" key="GridCell.Tab.0.right/0.0.1920.1040@0.0.1920.1040" timestamp="1587626202912" />
+    <state width="1877" height="348" key="GridCell.Tab.1.bottom" timestamp="1587626211253">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.1.bottom/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278938" />
-    <state width="1877" height="348" key="GridCell.Tab.1.center" timestamp="1587094278938">
+    <state width="1877" height="348" key="GridCell.Tab.1.bottom/0.0.1920.1040@0.0.1920.1040" timestamp="1587626211253" />
+    <state width="1877" height="348" key="GridCell.Tab.1.center" timestamp="1587626211253">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.1.center/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278938" />
-    <state width="1877" height="348" key="GridCell.Tab.1.left" timestamp="1587094278938">
+    <state width="1877" height="348" key="GridCell.Tab.1.center/0.0.1920.1040@0.0.1920.1040" timestamp="1587626211253" />
+    <state width="1877" height="348" key="GridCell.Tab.1.left" timestamp="1587626211253">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.1.left/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278938" />
-    <state width="1877" height="348" key="GridCell.Tab.1.right" timestamp="1587094278938">
+    <state width="1877" height="348" key="GridCell.Tab.1.left/0.0.1920.1040@0.0.1920.1040" timestamp="1587626211253" />
+    <state width="1877" height="348" key="GridCell.Tab.1.right" timestamp="1587626211253">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state width="1877" height="348" key="GridCell.Tab.1.right/0.0.1920.1040@0.0.1920.1040" timestamp="1587094278938" />
-    <state x="461" y="162" key="SettingsEditor" timestamp="1586968374322">
+    <state width="1877" height="348" key="GridCell.Tab.1.right/0.0.1920.1040@0.0.1920.1040" timestamp="1587626211253" />
+    <state x="461" y="162" key="SettingsEditor" timestamp="1587623433248">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="461" y="162" key="SettingsEditor/0.0.1920.1040@0.0.1920.1040" timestamp="1586968374322" />
+    <state x="461" y="162" key="SettingsEditor/0.0.1920.1040@0.0.1920.1040" timestamp="1587623433248" />
     <state x="859" y="250" key="ftp.server.browser" timestamp="1586796828300">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="859" y="250" key="ftp.server.browser/0.0.1920.1040@0.0.1920.1040" timestamp="1586796828300" />
+    <state x="726" y="412" key="publish.login" timestamp="1587623416339">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="726" y="412" key="publish.login/0.0.1920.1040@0.0.1920.1040" timestamp="1587623416339" />
     <state x="623" y="225" width="672" height="678" key="search.everywhere.popup" timestamp="1586730375224">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
@@ -137,13 +168,18 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/cliFile.c</url>
-          <line>195</line>
+          <line>307</line>
           <option name="timeStamp" value="8" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/main.c</url>
-          <line>10</line>
-          <option name="timeStamp" value="14" />
+          <url>file://$PROJECT_DIR$/cliFile.c</url>
+          <line>207</line>
+          <option name="timeStamp" value="15" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/cliFile.c</url>
+          <line>227</line>
+          <option name="timeStamp" value="16" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
