@@ -25,6 +25,14 @@ uint32_t ReadUInt32(uint8_t** pData)
     return value;
 }
 
+uint64_t ReadUInt64(uint8_t** pData)
+{
+    //uint64_t value = *((uint64_t*)*pData);
+    uint64_t value = READ64(*pData);
+    *pData += 8;
+    return value;
+}
+
 void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodDefinition* callingMethod)
 {
     MetadataToken* token; 
@@ -97,7 +105,75 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
                     method->TypeDefinition->Namespace, method->TypeDefinition->Name, method->Name,
                     callingMethod->TypeDefinition->Namespace, callingMethod->TypeDefinition->Name, callingMethod->Name);
             else
-                printf("Opcode: 0x%02x\n", currentILOpcode);
+                printf("Opcode: 0x%02x ( RET   ) =====> EXIT\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x1f) // ldc.i4.s
+        {
+            printf("Opcode: 0x%02x ( LDC.I4.S ) =====> ", currentILOpcode);
+            uint32_t value = (uint32_t)(int32_t)(int8_t)ReadUInt8(currentDataPointer);
+            printf("0x%x\n", value);
+        }
+        else if (currentILOpcode == 0x0a) // stloc.0
+        {
+            printf("Opcode: 0x%02x ( STLOC.0 )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x0b) // stloc.1
+        {
+            printf("Opcode: 0x%02x ( STLOC.1 )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x0c) // stloc.2
+        {
+            printf("Opcode: 0x%02x ( STLOC.2 )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x0d) // stloc.3
+        {
+            printf("Opcode: 0x%02x ( STLOC.3 )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x11) // ldloc.s
+        {
+            printf("Opcode: 0x%02x ( LDLOC.S ) =====> ", currentILOpcode);
+            uint32_t localIndex = ReadUInt8(currentDataPointer);
+            printf("0x%x\n", localIndex);
+        }
+        else if (currentILOpcode == 0x13) // StLoc.S
+        {
+            printf("Opcode: 0x%02x ( STLOC.S ) =====> ", currentILOpcode);
+            uint32_t value = ReadUInt8(currentDataPointer);
+            printf("0x%x\n", value);
+        }
+        else if (currentILOpcode == 0x15) // Ldc.i4.m1
+        {
+            printf("Opcode: 0x%02x ( LDC.I4.M1 )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x16) // Ldc.i4.0
+        {
+            printf("Opcode: 0x%02x ( LDC.I4.0 )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x20) // Ldc.I4
+        {
+            printf("Opcode: 0x%02x ( LDC.I4 ) =====> ", currentILOpcode);
+            uint32_t value = ReadUInt32(currentDataPointer);
+            printf("0x%x\n", value);
+        }
+        else if (currentILOpcode == 0x21) // Ldc.I8
+        {
+            printf("Opcode: 0x%02x ( LDC.I8 ) =====> ", currentILOpcode);
+
+            uint64_t* value = (uint64_t*)malloc(sizeof(uint64_t));
+            *value = ReadUInt64(currentDataPointer);
+
+            printf("0x%llx\n", *value);
+        }
+        else if (currentILOpcode == 0x2B) // br.s
+        {
+            printf("Opcode: 0x%02x ( BR.S ) =====> ", currentILOpcode);
+            uint32_t branchTarget = (uint32_t)((int32_t)((int8_t)ReadUInt8(currentDataPointer)));
+            printf("TARGET: +0x%x\n", branchTarget);
+            
+        }
+        else if (currentILOpcode == 0x6A) // conv.i8
+        {
+            printf("Opcode: 0x%02x ( CONV.I8 )\n", currentILOpcode);
         }
         else
             printf("Opcode: 0x%02x\n", currentILOpcode);
