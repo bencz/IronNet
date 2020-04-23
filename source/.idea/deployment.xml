@@ -2,6 +2,19 @@
 <project version="4">
   <component name="PublishConfigData">
     <serverData>
+      <paths name="LocalM68k (7789ffb9-d8ca-4edc-b9bf-2774eca6bfba)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/bencz/IronNet" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/vs" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
       <paths name="Localppc64 (0933393e-dc24-4ff8-b4ae-83f8b5a3b5a4)">
         <serverdata>
           <mappings>
@@ -12,6 +25,7 @@
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
           </excludedPaths>
         </serverdata>
@@ -26,7 +40,9 @@
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-minicloud" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
             <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localppc64" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug-localm68k" />
           </excludedPaths>
         </serverdata>
       </paths>

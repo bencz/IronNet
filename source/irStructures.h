@@ -50,7 +50,7 @@ struct _IRAssembly
 	IRGenericMethod* GenericMethodsHashTable;
 };
 
-//IRAssembly* IRAssembly_Create(AppDomain* pDomain, CLIFile* pFile);
+IRAssembly* IRAssembly_Create(AppDomain* pDomain, CLIFile* pFile);
 void IRAssembly_Destroy(IRAssembly* pAssembly);
 void IRAssembly_AddField(IRAssembly* pAssembly, IRField* pField);
 void IRAssembly_AddType(IRAssembly* pAssembly, IRType* pType);

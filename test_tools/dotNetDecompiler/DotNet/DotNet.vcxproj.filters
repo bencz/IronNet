@@ -1,0 +1,342 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\MetaDataTables">
+      <UniqueIdentifier>{3ba9b79d-eddf-4ec1-9bcf-c9f9e18961d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\MetaDataTables">
+      <UniqueIdentifier>{dc29610d-b280-459d-84fe-8d7dc6e124d4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="HeaderBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PEData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RVAManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TableBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AssemblyTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="IndexManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CodedIndex.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StreamHeader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AssemblyOSTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="AssemblyProcessorTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="AssemblyRefOSTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="AssemblyRefProcessorTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="AssemblyRefTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ClassLayoutTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ConstantTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="CustomAttributeTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="DeclSecurityTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="EventMapTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="EventTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ExportedTypeTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="FieldLayoutTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="FieldMarshalTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="FieldRVATable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="FieldTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="FileTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ImplMapTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="InterfaceImplTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ManifestResourceTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="MemberRefTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="MethodDefTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="MethodImplTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="MethodSemanticsTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ModuleRefTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ModuleTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="NestedClassTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="ParamTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="PropertyMapTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="PropertyTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="StandAloneSigTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeDefTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeRefTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeSpecTable.cpp">
+      <Filter>Source Files\MetaDataTables</Filter>
+    </ClCompile>
+    <ClCompile Include="MethodData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="OpCode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utf.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="StringBuilder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderBase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PEData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PEHeaders.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RVAManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StringHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TableBase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MetadataTables.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AssemblyTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MetadataTableCreator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IndexManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CodedIndices.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CodedIndex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StreamHeader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AssemblyOSTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="AssemblyProcessorTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="AssemblyRefOSTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="AssemblyRefProcessorTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="AssemblyRefTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ClassLayoutTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ConstantTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="CustomAttributeTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="DeclSecurityTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="EventMapTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="EventTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ExportedTypeTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="FieldLayoutTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="FieldMarshalTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="FieldRVATable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="FieldTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="FileTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ImplMapTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="InterfaceImplTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ManifestResourceTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MemberRefTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MethodDefTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MethodImplTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MethodSemanticsTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ModuleRefTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ModuleTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="NestedClassTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="ParamTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="PropertyMapTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="PropertyTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="StandAloneSigTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeDefTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeRefTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeSpecTable.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MetaDataIncludes.h">
+      <Filter>Header Files\MetaDataTables</Filter>
+    </ClInclude>
+    <ClInclude Include="MethodData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OpCode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ElementType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CppUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="unicode_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IncFileNm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
