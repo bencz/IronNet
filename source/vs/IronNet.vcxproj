@@ -26,6 +26,7 @@
     <ClInclude Include="..\irOpcode.h" />
     <ClInclude Include="..\irStructures.h" />
     <ClInclude Include="..\metadataStructures.h" />
+    <ClInclude Include="..\stringHelper.h" />
     <ClInclude Include="..\uthash.h" />
   </ItemGroup>
   <ItemGroup>
