@@ -167,7 +167,6 @@ CLIFile* CLIFile_Create(uint8_t* pData, uint32_t pLength, const char* pFilename)
 	SWAP32(cliHeader->SizeOfHeader);
 	SWAP32(cliHeader->Flags);
 	SWAP32(cliHeader->EntryPointRVA);
-	SWAP32(cliHeader->EntryPointToken);
 	SWAP16(cliHeader->MajorRuntimeVersion);
 	SWAP16(cliHeader->MinorRuntimeVersion);
 	SWAPPDE(cliHeader->Metadata);
@@ -229,7 +228,7 @@ CLIFile* CLIFile_Create(uint8_t* pData, uint32_t pLength, const char* pFilename)
 	}
 
 	file->TablesHeader = (PECLIMetadataTablesHeader*)file->Tables;
-#if BIGENDIAN == 0
+#if BIGENDIAN
 	SWAP32(file->TablesHeader->Reserved);
 	SWAP64(file->TablesHeader->PresentTables);
 	SWAP64(file->TablesHeader->SortedTables);
