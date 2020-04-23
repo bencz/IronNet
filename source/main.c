@@ -63,12 +63,16 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
 
         currentILOpcode = ReadUInt8(currentDataPointer);
 
-        if (currentILOpcode == 0x28) // Call
+        if (currentILOpcode == 0x00) // NOP
+        {
+            printf("Opcode: 0x%02x ( NOP )\n", currentILOpcode);
+        }
+        else if (currentILOpcode == 0x28) // Call
         {
             MetadataToken* token = CLIFile_ExpandMetadataToken(cliFile, ReadUInt32(currentDataPointer));
             MethodDefinition* methodDefinition = (MethodDefinition*)token->Data;
 
-            printf("Opcode: 0x%02x ( CALL  ) =====> %s.%s.%s\n", currentILOpcode, methodDefinition->TypeDefinition->Namespace, methodDefinition->TypeDefinition->Name, methodDefinition->Name);
+            printf("Opcode: 0x%02x ( CALL  ) =====> %s.%s::%s\n", currentILOpcode, methodDefinition->TypeDefinition->Namespace, methodDefinition->TypeDefinition->Name, methodDefinition->Name);
 
             test_DecompileProgram(cliFile, token, method);
         }
@@ -84,8 +88,8 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
             strLength -= 1; // Remove the null terminator
             CLIFile_DestroyMetadataToken(token);
 
-            uint32_t realStringSize = (uint32_t*)(strLength >> 1);
-            printf("Opcode: 0x%02x ( LDSTR ) =====> ", currentILOpcode);
+            uint32_t realStringSize = (uint32_t)(strLength >> 1);
+            printf("Opcode: 0x%02x ( LDSTR ) =====> \"", currentILOpcode);
             for (int i = 0; i < strLength; i++)
             {
                 if (*(str) == 0)
@@ -96,12 +100,12 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
 
                 printf("%c", *(str)++);
             }
-            printf("\n");
+            printf("\"\n");
         }
         else if (currentILOpcode == 0x2A) // Ret
         {
             if(callingMethod != NULL)
-                printf("Opcode: 0x%02x ( RET   ) =====> FROM ( %s.%s.%s ) TO ( %s.%s.%s )\n", currentILOpcode, 
+                printf("Opcode: 0x%02x ( RET   ) =====> FROM ( %s.%s::%s ) TO ( %s.%s::%s )\n", currentILOpcode,
                     method->TypeDefinition->Namespace, method->TypeDefinition->Name, method->Name,
                     callingMethod->TypeDefinition->Namespace, callingMethod->TypeDefinition->Name, callingMethod->Name);
             else
@@ -168,7 +172,7 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
         {
             printf("Opcode: 0x%02x ( BR.S ) =====> ", currentILOpcode);
             uint32_t branchTarget = (uint32_t)((int32_t)((int8_t)ReadUInt8(currentDataPointer)));
-            printf("TARGET: +0x%x\n", branchTarget);
+            printf("TARGET: %s0x%03x\n", (branchTarget != 0 ? (branchTarget > 0 ? "+" : "-") : ""), branchTarget);
             
         }
         else if (currentILOpcode == 0x6A) // conv.i8
