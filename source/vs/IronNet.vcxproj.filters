@@ -53,5 +53,8 @@
     <ClCompile Include="..\metadataStructures.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\stringHelper.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

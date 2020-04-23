@@ -127,11 +127,13 @@ CLIFile* CLIFile_Create(uint8_t* pData, uint32_t pLength, const char* pFilename)
 	SWAP32(peOptionalHeader->LoaderFlags);
 	SWAP32(peOptionalHeader->NumberOfRvaAndSizes);
 
+#if BIGENDIAN
 	for (int i = 0; i < 16; i++)
 	{
 		SWAP32(peOptionalHeader->DataDirectory[i].Size);
 		SWAP32(peOptionalHeader->DataDirectory[i].VirtualAddress);
 	}
+#endif
 
 	// -----------------------------------------------------------------------------------------------------
 	//

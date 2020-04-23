@@ -33,6 +33,7 @@
     <ClCompile Include="..\cliFile.c" />
     <ClCompile Include="..\main.c" />
     <ClCompile Include="..\metadataStructures.c" />
+    <ClCompile Include="..\stringHelper.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

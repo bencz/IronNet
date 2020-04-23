@@ -89,17 +89,21 @@ void test_DecompileProgram(CLIFile* cliFile, MetadataToken* methodToken, MethodD
             CLIFile_DestroyMetadataToken(token);
 
             uint32_t realStringSize = (uint32_t)(strLength >> 1);
-            printf("Opcode: 0x%02x ( LDSTR ) =====> \"", currentILOpcode);
-            for (int i = 0; i < strLength; i++)
+            char* strTmp = (char*)malloc(sizeof(char) * realStringSize + 1);
+            memset(strTmp, '\0', realStringSize + 1);
+            int i = 0;
+            do
             {
                 if (*(str) == 0)
                 {
                     *(str)++;
                     continue;
                 }
+                strTmp[i++] = *(str)++;
+            } while (i != realStringSize);
 
-                printf("%c", *(str)++);
-            }
+            printf("Opcode: 0x%02x ( LDSTR ) =====> \"", currentILOpcode);
+            printf("%s", GETSTRING(strTmp));
             printf("\"\n");
         }
         else if (currentILOpcode == 0x2A) // Ret
@@ -206,8 +210,9 @@ void tests(CLIFile* cliFile)
 int main()
 {
 	uint32_t pFileLen = 0;
+    const char* fileName = "corlib.dll";
 
-	FILE* f = fopen("testTypes.exe", "rb");
+	FILE* f = fopen(fileName, "rb");
 	fseek(f, 0, SEEK_END);
 	pFileLen = ftell(f);
 	fseek(f, 0, SEEK_SET);
@@ -215,7 +220,7 @@ int main()
 	fread(pData, 1, pFileLen, f);
 	fclose(f);
 
-	CLIFile* cliFile = CLIFile_Create(pData, pFileLen, "test.exe");
+	CLIFile* cliFile = CLIFile_Create(pData, pFileLen, fileName);
 
     tests(cliFile);
 
