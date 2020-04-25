@@ -339,7 +339,8 @@ MetadataToken* CLIFile_ExpandMetadataToken(CLIFile* pFile, uint32_t pToken)
 	token->Table = pToken >> 24;
 	token->Data = NULL;
 	uint32_t index = pToken & 0x00FFFFFF;
-	if (index == 0) return token;
+	if (index == 0) 
+		return token;
 	if (token->Table == MetadataTable_UserStrings)
 	{
 		token->IsUserString = true;

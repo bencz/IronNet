@@ -3140,8 +3140,6 @@ uint8_t* SignatureLocalVariable_Parse(uint8_t* pCursor, SignatureLocalVariable**
 //    }
 //}
 
-
-
 CustomAttributeSignature* CustomAttributeSignature_Create()
 {
     return (CustomAttributeSignature*)calloc(1, sizeof(CustomAttributeSignature));

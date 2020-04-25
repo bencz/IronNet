@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "cliFile.h"
 #include "stringHelper.h"
@@ -206,7 +207,6 @@ void tests(CLIFile* cliFile)
     test_DecompileProgram(cliFile, NULL, NULL);
 }
 
-
 int main()
 {
 	uint32_t pFileLen = 0;
@@ -220,7 +220,10 @@ int main()
 	fread(pData, 1, pFileLen, f);
 	fclose(f);
 
+    //clock_t begin = clock();
 	CLIFile* cliFile = CLIFile_Create(pData, pFileLen, fileName);
+    //clock_t end = clock();
+    //printf("CLIFile_Create() execution time: %f\n", (double)(end - begin) / CLOCKS_PER_SEC);
 
     tests(cliFile);
 
