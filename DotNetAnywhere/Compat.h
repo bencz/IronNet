@@ -20,12 +20,13 @@
 
 #if !defined (__COMPAT_H)
 #define __COMPAT_H
-
+#include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <fcntl.h>
 
-#ifdef WIN32
+#ifdef _WIN32
+
 #include <winsock2.h> // winsock2.h must be included before windows.h
 #include <io.h>
 #include <windows.h>
@@ -65,7 +66,7 @@
 #define LIB_SUFFIX "dll"
 #define STDCALL __stdcall
 
-#else // WIN32
+#else // _WIN32
 
 #include <stdlib.h>
 #include <strings.h>
@@ -75,7 +76,7 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <dev/wscons/wsconsio.h>
+// #include <dev/wscons/wsconsio.h>
 #include <dlfcn.h>
 #include <glob.h>
 
@@ -84,9 +85,19 @@
 #define LIB_SUFFIX "so"
 #define STDCALL
 
-#endif // WIN32
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#endif
 
-#define TMALLOC(t) (t*)malloc(sizeof(t))
-#define TMALLOCFOREVER(t) (t*)mallocForever(sizeof(t))
+#ifndef min
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+
+#endif // _WIN32
+
+#define TMALLOC(c, t) (t*)malloc(c * sizeof(t))
+#define TCALLOC(c, t) (t*)calloc(c, sizeof(t))
+#define TMALLOCFOREVER(c, t) (t*)mallocForever(c * sizeof(t))
+#define TCALLOCFOREVER(c, t) (t*)callocForever(c, sizeof(t))
 
 #endif

@@ -21,6 +21,8 @@
 #include "Compat.h"
 #include "Sys.h"
 
+#include "Endian.h"
+
 #include "CLIFile.h"
 #include "RVA.h"
 #include "MetaData.h"
@@ -34,25 +36,58 @@
 // Is this exe/dll file for the .NET virtual machine?
 #define DOT_NET_MACHINE 0x14c
 
-typedef struct tFilesLoaded_ tFilesLoaded;
-struct tFilesLoaded_ {
-	tCLIFile *pCLIFile;
-	tFilesLoaded *pNext;
+// In .NET Core, the core libraries are split over numerous assemblies. For simplicity,
+// the DNA corlib just puts them in one assembly
+static STRING assembliesMappedToDnaCorlib[] = {
+	"mscorlib",
+	"netstandard"
+	// Also, "System.*" is implemented below
 };
+static int numAssembliesMappedToDnaCorlib = sizeof(assembliesMappedToDnaCorlib)/sizeof(STRING);
 
 // Keep track of all the files currently loaded
 static tFilesLoaded *pFilesLoaded = NULL;
 
-tMetaData* CLIFile_GetMetaDataForAssembly(unsigned char *pAssemblyName) {
+tFilesLoaded* CLIFile_GetLoadedAssemblies() {
+	return pFilesLoaded;
+}
+
+tMetaData* CLIFile_GetMetaDataForLoadedAssembly(char *pLoadedAssemblyName) {
+	tFilesLoaded *pFiles = pFilesLoaded;
+
+	while (pFiles != NULL) {
+		tCLIFile *pCLIFile = pFiles->pCLIFile;
+		tMD_Assembly *pThisAssembly = MetaData_GetTableRow(pCLIFile->pMetaData, MAKE_TABLE_INDEX(0x20, 1));
+		if (strcmp(pLoadedAssemblyName, pThisAssembly->name) == 0) {
+			// Found the correct assembly, so return its meta-data
+			return pCLIFile->pMetaData;
+		}
+		pFiles = pFiles->pNext;
+	}
+
+	Crash("Assembly %s is not loaded\n", pLoadedAssemblyName);
+	FAKE_RETURN;
+}
+
+tMetaData* CLIFile_GetMetaDataForAssembly(char *pAssemblyName) {
 	tFilesLoaded *pFiles;
 
-	// Convert "mscorlib" to "corlib"
-	if (strcmp(pAssemblyName, "mscorlib") == 0) {
+	// Where applicable, redirect this assembly lookup into DNA's corlib
+	// (e.g., mscorlib, System.Runtime, etc.)
+	for (int i = 0; i < numAssembliesMappedToDnaCorlib; i++) {
+		if (strcmp(pAssemblyName, assembliesMappedToDnaCorlib[i]) == 0) {
+			pAssemblyName = "corlib";
+			break;
+		}
+	}
+
+	// Also redirect System.* into corlib for convenience
+	if (strncmp("System.", pAssemblyName, 7) == 0) {
 		pAssemblyName = "corlib";
 	}
 
 	// Look in already-loaded files first
-	pFiles = pFilesLoaded;
+	pFiles = CLIFile_GetLoadedAssemblies();
 	while (pFiles != NULL) {
 		tCLIFile *pCLIFile;
 		tMD_Assembly *pThisAssembly;
@@ -70,7 +105,7 @@ tMetaData* CLIFile_GetMetaDataForAssembly(unsigned char *pAssemblyName) {
 	// Assembly not loaded, so load it if possible
 	{
 		tCLIFile *pCLIFile;
-		unsigned char fileName[128];
+		char fileName[128];
 		sprintf(fileName, "%s.dll", pAssemblyName);
 		pCLIFile = CLIFile_Load(fileName);
 		if (pCLIFile == NULL) {
@@ -78,6 +113,23 @@ tMetaData* CLIFile_GetMetaDataForAssembly(unsigned char *pAssemblyName) {
 		}
 		return pCLIFile->pMetaData;
 	}
+}
+
+tMD_TypeDef* CLIFile_FindTypeInAllLoadedAssemblies(STRING nameSpace, STRING name) {
+	tFilesLoaded *pFiles = CLIFile_GetLoadedAssemblies();
+	while (pFiles != NULL) {
+		tCLIFile *pCLIFile = pFiles->pCLIFile;
+
+		tMD_TypeDef* typeDef = MetaData_GetTypeDefFromName(pCLIFile->pMetaData, nameSpace, name, NULL, /* assertExists */ 0);
+		if (typeDef != NULL) {
+			return typeDef;
+		}
+
+		pFiles = pFiles->pNext;
+	}
+
+	Crash("CLIFile_FindTypeInAllLoadedAssemblies(): Cannot find type %s.%s", nameSpace, name);
+	return NULL;
 }
 
 static void* LoadFileFromDisk(char *pFileName) {
@@ -104,8 +156,100 @@ static void* LoadFileFromDisk(char *pFileName) {
 	return pData;
 }
 
+char* GetNullTerminatedString(PTR pData, int* length)
+{
+	*length = (int)strlen((char*)pData) + 1;
+	return (char*)pData;
+}
+
+static unsigned int GetU32(unsigned char *pSource, int* length) {
+	unsigned int a, b, c, d;
+
+	a = pSource[0];
+	b = pSource[1];
+	c = pSource[2];
+	d = pSource[3];
+
+	*length = 4;
+
+	return (a >> 24) | (b >> 16) | (c >> 8) | d;
+}
+
+static tDebugMetaData* LoadDebugFile(PTR pData) {
+	tDebugMetaData *pRet = TMALLOC(1, tDebugMetaData);
+	tDebugMetaDataEntry* pPrevious = NULL;
+	tDebugMetaDataEntry* pFirst = NULL;
+	int moduleLength;
+	int namespaceLength;
+	int classLength;
+	int methodLength;
+	int intLength;
+	int IdLength;
+
+	while (*pData) {
+		tDebugMetaDataEntry* pEntry = TMALLOC(1, tDebugMetaDataEntry);
+		IdLength = 0;
+		pEntry->sequencePointsCount = 0;
+		pEntry->pModuleName = GetNullTerminatedString(pData, &moduleLength);
+		pData += moduleLength;
+		IdLength += moduleLength;
+		pEntry->pNamespaceName = GetNullTerminatedString(pData, &namespaceLength);
+		pData += namespaceLength;
+		IdLength += namespaceLength;
+		pEntry->pClassName = GetNullTerminatedString(pData, &classLength);
+		pData += classLength;
+		IdLength += classLength;
+		pEntry->pMethodName = GetNullTerminatedString(pData, &methodLength);
+		pData += methodLength;
+		IdLength += methodLength;
+
+		pEntry->pID = (char*)mallocForever((U32)IdLength + 1);
+		IdLength = 0;
+		strncpy(pEntry->pID, pEntry->pModuleName, moduleLength - 1);
+		IdLength += moduleLength - 1;
+		strncpy(pEntry->pID + IdLength, pEntry->pNamespaceName, namespaceLength - 1);
+		IdLength += namespaceLength - 1;
+		strncpy(pEntry->pID + IdLength, pEntry->pClassName, classLength - 1);
+		IdLength += classLength - 1;
+		strncpy(pEntry->pID + IdLength, pEntry->pMethodName, methodLength);
+
+		// Static Analysis - Unused:
+		// IdLength += methodLength;
+
+		pEntry->sequencePointsCount = GetU32(pData, &intLength);
+		pData += intLength;
+		for (int i = 0; i < pEntry->sequencePointsCount; i++) {
+			int offset = GetU32(pData, &intLength);
+			pEntry->sequencePoints[i] = offset;
+			pData += intLength;
+		}
+
+		if (pPrevious != NULL) {
+			pPrevious->next = pEntry;
+		}
+
+		if (pFirst == NULL) {
+			pFirst = pEntry;
+		}
+		pPrevious = pEntry;
+	}
+
+	if( pPrevious ) {
+		pPrevious->next = NULL;
+	}
+
+	pRet->entries = pFirst;
+
+	return pRet;
+}
+
 static tCLIFile* LoadPEFile(void *pData) {
-	tCLIFile *pRet = TMALLOC(tCLIFile);
+	if(pData == NULL) {
+		log_f(0, "LoadPEFile: pData is NULL\n");
+		return NULL;
+	}
+
+	tCLIFile *pRet = TMALLOCFOREVER(1, tCLIFile);
 
 	unsigned char *pMSDOSHeader = (unsigned char*)&(((unsigned char*)pData)[0]);
 	unsigned char *pPEHeader;
@@ -118,28 +262,28 @@ static tCLIFile* LoadPEFile(void *pData) {
 	unsigned int lfanew;
 	unsigned short machine;
 	int numSections;
-	unsigned int imageBase;
-	int fileAlignment;
-	unsigned int cliHeaderRVA, cliHeaderSize;
-	unsigned int metaDataRVA, metaDataSize;
+	// unsigned int imageBase;
+	// int fileAlignment;
+	unsigned int cliHeaderRVA /*, cliHeaderSize */;
+	unsigned int metaDataRVA /*, metaDataSize */;
 	tMetaData *pMetaData;
 
 	pRet->pRVA = RVA();
 	pRet->pMetaData = pMetaData = MetaData();
 
-	lfanew = *(unsigned int*)&(pMSDOSHeader[0x3c]);
+	lfanew = UINT32_FROM_LE(*(unsigned int*)&(pMSDOSHeader[0x3c]));
 	pPEHeader = pMSDOSHeader + lfanew + 4;
 	pPEOptionalHeader = pPEHeader + 20;
 	pPESectionHeaders = pPEOptionalHeader + 224;
 
-	machine = *(unsigned short*)&(pPEHeader[0]);
+	machine = UINT16_FROM_LE(*(unsigned short*)&(pPEHeader[0]));
 	if (machine != DOT_NET_MACHINE) {
 		return NULL;
 	}
-	numSections = *(unsigned short*)&(pPEHeader[2]);
+	numSections = UINT16_FROM_LE(*(unsigned short*)&(pPEHeader[2]));
 
-	imageBase = *(unsigned int*)&(pPEOptionalHeader[28]);
-	fileAlignment = *(int*)&(pPEOptionalHeader[36]);
+	// imageBase = *(unsigned int*)&(pPEOptionalHeader[28]);
+	// fileAlignment = *(int*)&(pPEOptionalHeader[36]);
 
 	for (i=0; i<numSections; i++) {
 		unsigned char *pSection = pPESectionHeaders + i * 40;
@@ -147,12 +291,12 @@ static tCLIFile* LoadPEFile(void *pData) {
 	}
 
 	cliHeaderRVA = *(unsigned int*)&(pPEOptionalHeader[208]);
-	cliHeaderSize = *(unsigned int*)&(pPEOptionalHeader[212]);
+	// cliHeaderSize = *(unsigned int*)&(pPEOptionalHeader[212]);
 
 	pCLIHeader = RVA_FindData(pRet->pRVA, cliHeaderRVA);
 
 	metaDataRVA = *(unsigned int*)&(pCLIHeader[8]);
-	metaDataSize = *(unsigned int*)&(pCLIHeader[12]);
+	// metaDataSize = *(unsigned int*)&(pCLIHeader[12]);
 	pRet->entryPoint = *(unsigned int*)&(pCLIHeader[20]);
 	pRawMetaData = RVA_FindData(pRet->pRVA, metaDataRVA);
 
@@ -171,7 +315,7 @@ static tCLIFile* LoadPEFile(void *pData) {
 		for (i=0; i<(signed)numberOfStreams; i++) {
 			unsigned int streamOffset = *(unsigned int*)&pRawMetaData[ofs];
 			unsigned int streamSize = *(unsigned int*)&pRawMetaData[ofs+4];
-			unsigned char *pStreamName = &pRawMetaData[ofs+8];
+			char *pStreamName = (char*)&pRawMetaData[ofs+8];
 			void *pStream = pRawMetaData + streamOffset;
 			ofs += (unsigned int)((strlen(pStreamName)+4) & (~0x3)) + 8;
 			if (strcasecmp(pStreamName, "#Strings") == 0) {
@@ -235,6 +379,7 @@ static tCLIFile* LoadPEFile(void *pData) {
 
 tCLIFile* CLIFile_Load(char *pFileName) {
 	void *pRawFile;
+	void* pRawDebugFile;
 	tCLIFile *pRet;
 	tFilesLoaded *pNewFile;
 
@@ -250,8 +395,25 @@ tCLIFile* CLIFile_Load(char *pFileName) {
 	pRet->pFileName = (char*)mallocForever((U32)strlen(pFileName) + 1);
 	strcpy(pRet->pFileName, pFileName);
 
+	// Assume it ends in .dll
+	char* pDebugFileName = (char*)mallocForever((U32)strlen(pFileName) + 1);
+	U32 fileLengthWithoutExt = (int)strlen(pFileName) - 3;
+	strncpy(pDebugFileName, pFileName, fileLengthWithoutExt);
+	strncpy(pDebugFileName + fileLengthWithoutExt, "wdb", 3);
+	*(pDebugFileName + fileLengthWithoutExt + 3) = '\0';
+
+	pRawDebugFile = LoadFileFromDisk(pDebugFileName);
+	if (pRawDebugFile == NULL) {
+		log_f(1, "\nUnable to load debug file: %s\n", pDebugFileName);
+	}
+	else {
+		log_f(1, "\nLoaded debug file: %s\n", pDebugFileName);
+		pRet->pDebugFileName = pDebugFileName;
+		pRet->pMetaData->debugMetadata = LoadDebugFile(pRawDebugFile);
+	}
+
 	// Record that we've loaded this file
-	pNewFile = TMALLOCFOREVER(tFilesLoaded);
+	pNewFile = TMALLOCFOREVER(1, tFilesLoaded);
 	pNewFile->pCLIFile = pRet;
 	pNewFile->pNext = pFilesLoaded;
 	pFilesLoaded = pNewFile;
@@ -283,11 +445,11 @@ I32 CLIFile_Execute(tCLIFile *pThis, int argc, char **argp) {
 }
 
 void CLIFile_GetHeapRoots(tHeapRoots *pHeapRoots) {
-	tFilesLoaded *pFile;
+	tFilesLoaded *pFiles;
 
-	pFile = pFilesLoaded;
-	while (pFile != NULL) {
-		MetaData_GetHeapRoots(pHeapRoots, pFile->pCLIFile->pMetaData);
-		pFile = pFile->pNext;
+	pFiles = CLIFile_GetLoadedAssemblies();
+	while (pFiles != NULL) {
+		MetaData_GetHeapRoots(pHeapRoots, pFiles->pCLIFile->pMetaData);
+		pFiles = pFiles->pNext;
 	}
 }

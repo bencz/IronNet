@@ -45,7 +45,7 @@ tAsyncCall* System_Console_Write(PTR pThis_, PTR pParams, PTR pReturnValue) {
 				str8[i] = c?c:'?';
 			}
 			str8[i] = 0;
-			printf(str8);
+			printf("%s", str8);
 			strLen -= thisLen;
 			start += thisLen;
 		}
@@ -61,7 +61,7 @@ static U32 Internal_ReadKey_Check(PTR pThis_, PTR pParams, PTR pReturnValue, tAs
 		nextKeybC = 0xffffffff;
 		return 1;
 	} else {
-#ifdef WIN32
+#ifdef _WIN32
 		if (_kbhit()) {
 			U32 c = _getch();
 			*(U32*)pReturnValue = c;
@@ -97,7 +97,7 @@ static U32 Internal_ReadKey_Check(PTR pThis_, PTR pParams, PTR pReturnValue, tAs
 }
 
 tAsyncCall* System_Console_Internal_ReadKey(PTR pThis_, PTR pParams, PTR pReturnValue) {
-	tAsyncCall *pAsync = TMALLOC(tAsyncCall);
+	tAsyncCall *pAsync = TMALLOC(1, tAsyncCall);
 
 	pAsync->sleepTime = -1;
 	pAsync->checkFn = Internal_ReadKey_Check;

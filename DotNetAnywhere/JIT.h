@@ -24,6 +24,18 @@
 typedef struct tJITted_ tJITted;
 typedef struct tExceptionHeader_ tExceptionHeader;
 
+// [Steve] This overly-specific-looking int-returning 3-STRING-arg signature is because it's difficult
+// to support arbitrary signatures given Emscripten's limitations around needing to know the original
+// type of a function pointer when invoking it: https://kripken.github.io/emscripten-site/docs/porting/guidelines/function_pointer_issues.html
+// My workaround is just to hard-code this as the only possible PInvoke method signature and then skip
+// the code in PInvoke.c that tries to dynamically select a function pointer type.
+//
+// With more work I'm sure it would be possible to figure out a mechanism for getting the original
+// Pinvoke.c logic to work. It might even just be as simple as changing the return type of fnPInvoke from int
+// to U64, since it looks like that's hardcoded as the return type in Pinvoke.c. But I don't need to deal
+// with that now.
+typedef int(*fnPInvoke)(STRING libName, STRING funcName, STRING arg0);
+
 #include "Types.h"
 
 #ifdef GEN_COMBINED_OPCODES
@@ -36,7 +48,9 @@ struct tCombinedOpcodesMem_ {
 
 struct tJITted_ {
 	// The JITted opcodes
-	U32 *pOps;
+	size_t *pOps;
+	// The corresponding sequence points in the original CIL
+	size_t *pOpSequencePoints;
 	// The maximum size of the evaluation stack
 	U32 maxStack;
 	// The required size of the locals stack
@@ -45,6 +59,8 @@ struct tJITted_ {
 	U32 numExceptionHandlers;
 	// Pointer to the exception handler headers (NULL if none)
 	tExceptionHeader *pExceptionHeaders;
+	// If we have debug metadata for this method, points to it
+	tDebugMetaDataEntry *pDebugMetadataEntry;
 #ifdef GEN_COMBINED_OPCODES
 	// The number of bytes used by this JITted method - to include ALL bytes:
 	// The size of the opcodes, plus the size of the combined opcodes.
@@ -90,14 +106,18 @@ struct tJITCallNative_ {
 typedef struct tJITCallPInvoke_ tJITCallPInvoke;
 struct tJITCallPInvoke_ {
 	U32 opCode;
-	// The native function to call - type should be fnPInvoke, but there's a problem with #including PInvoke.h
-	void* fn;
+	// The native function to call
+	fnPInvoke fn;
 	// The method that is being called
 	tMD_MethodDef *pMethod;
 	// The ImplMap of the function that's being called
 	tMD_ImplMap *pImplMap;
 };
 
+#include "JIT_OpCodes.h"
+
+#ifdef SWITCH_ON_JIT_OPS
+#else
 typedef struct tJITCodeInfo_ {
 	// The beginning and end of the actual native code to run the JIT opcode.
 	void *pStart;
@@ -105,10 +125,9 @@ typedef struct tJITCodeInfo_ {
 	U32 isDynamic;
 } tJITCodeInfo;
 
-#include "JIT_OpCodes.h"
-
 extern tJITCodeInfo jitCodeInfo[JIT_OPCODE_MAXNUM];
 extern tJITCodeInfo jitCodeGoNext;
+#endif
 
 void JIT_Execute_Init();
 
@@ -119,12 +138,12 @@ U32 JIT_Execute(tThread *pThread, U32 numInst);
 
 #ifdef DIAG_OPCODE_TIMES
 #include "JIT_OpCodes.h"
-extern U64 opcodeTimes[JIT_OPCODE_MAXNUM];
+extern U64 opcodeTicks[JIT_OPCODE_MAXNUM];
 #endif
 
-#ifdef DIAG_OPCODE_USE
+#ifdef DIAG_OPCODE_USES
 #include "JIT_OpCodes.h"
-extern U32 opcodeNumUses[JIT_OPCODE_MAXNUM];
+extern U64 opcodeCounts[JIT_OPCODE_MAXNUM];
 #endif
 
 #endif

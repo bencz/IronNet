@@ -62,7 +62,7 @@ tAsyncCall* System_Threading_Thread_Start(PTR pThis_, PTR pParams, PTR pReturnVa
 	}
 	if (pThread->hasParam) {
 		// If this method has an object parameter (ParameterizedThreadStart)
-		params[paramBytes] = (PTR)pThread->param;
+		params[paramBytes > 0 ? 1 : 0] = (PTR)pThread->param;
 		paramBytes += sizeof(void*);
 	}
 
@@ -72,7 +72,7 @@ tAsyncCall* System_Threading_Thread_Start(PTR pThis_, PTR pParams, PTR pReturnVa
 }
 
 tAsyncCall* System_Threading_Thread_Sleep(PTR pThis_, PTR pParams, PTR pReturnValue) {
-	tAsyncCall *pAsync = TMALLOC(tAsyncCall);
+	tAsyncCall *pAsync = TMALLOC(1, tAsyncCall);
 
 	pAsync->sleepTime = ((I32*)pParams)[0];
 

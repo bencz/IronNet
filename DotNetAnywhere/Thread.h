@@ -29,7 +29,7 @@ typedef struct tThreadStack_ tThreadStack;
 #include "Heap.h"
 #include "Types.h"
 
-#define THREADSTACK_CHUNK_SIZE 10000
+#define THREADSTACK_CHUNK_SIZE 50000
 
 struct tThreadStack_ {
 	// This chunk of stack memory
@@ -72,6 +72,10 @@ struct tThread_ {
 	tAsyncCall *pAsync;
 	// Does this thread start with a parameter?
 	U32 hasParam;
+#ifdef DIAG_CALL_HISTORY
+	// nested method level
+	I32 nestedLevel;
+#endif
 	// Pointer to the first chunk of thread-stack memory
 	tThreadStack *pThreadStack;
 
@@ -98,13 +102,20 @@ struct tThread_ {
 #define THREADSTATE_STOPPED			0x0010
 #define THREADSTATE_SUSPENDED		0x0040
 
+extern int releaseBreakPoint;
+extern int waitingOnBreakPoint;
+extern int alwaysBreak;
+
+U32 Internal_Debugger_Resume_Check(PTR pThis_, PTR pParams, PTR pReturnValue, tAsyncCall *pAsync);
 tThread* Thread();
 void Thread_SetEntryPoint(tThread *pThis, tMetaData *pMetaData, IDX_TABLE entryPointToken, PTR params, U32 paramBytes);
 I32 Thread_Execute();
 tThread* Thread_GetCurrent();
-void* Thread_StackAlloc(tThread *pThread, U32 size);
-void Thread_StackFree(tThread *pThread, void *pAddr);
+PTR Thread_StackAlloc(tThread *pThread, U32 size);
+void Thread_StackFree(tThread *pThread, PTR pAddr);
 
 void Thread_GetHeapRoots(tHeapRoots *pHeapRoots);
+
+void Thread_PrintCallStack(tThread *pThread);
 
 #endif

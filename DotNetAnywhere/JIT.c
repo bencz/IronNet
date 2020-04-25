@@ -25,6 +25,7 @@
 
 #include "JIT_OpCodes.h"
 #include "CIL_OpCodes.h"
+#include "CLIFile.h"
 
 #include "MetaData.h"
 #include "Types.h"
@@ -48,7 +49,8 @@
 
 typedef struct tOps_ tOps;
 struct tOps_ {
-	U32 *p;
+	size_t *p;
+	size_t *pSequencePoints;
 	U32 capacity;
 	U32 ofs;
 };
@@ -60,9 +62,12 @@ struct tTypeStack_ {
 	U32 maxBytes; // The max size of the stack in bytes
 };
 
-#define InitOps(ops_, initialCapacity) ops_.capacity = initialCapacity; ops_.ofs = 0; ops_.p = malloc((initialCapacity) * sizeof(I32));
-#define DeleteOps(ops_) free(ops_.p)
+#define InitOps(ops_, initialCapacity) ops_.capacity = initialCapacity; ops_.ofs = 0; ops_.p = TMALLOC(initialCapacity, size_t); ops_.pSequencePoints = TMALLOC(initialCapacity, size_t);
+#define DeleteOps(ops_) free(ops_.p); free(ops_.pSequencePoints)
 
+#ifdef SWITCH_ON_JIT_OPS
+#define Translate(op, getDynamic) op
+#else
 // Turn this into a MACRO at some point?
 static U32 Translate(U32 op, U32 getDynamic) {
 	if (op >= JIT_OPCODE_MAXNUM) {
@@ -77,6 +82,7 @@ static U32 Translate(U32 op, U32 getDynamic) {
 		return (U32)jitCodeInfo[op].pStart;
 	}
 }
+#endif
 
 #ifdef GEN_COMBINED_OPCODES
 #define PushU32(v) PushU32_(&ops, (U32)(v)); PushU32_(&isDynamic, 0)
@@ -87,16 +93,17 @@ static U32 Translate(U32 op, U32 getDynamic) {
 #define PushOp(op) PushU32_(&ops, Translate((U32)(op), 0)); PushU32_(&isDynamic, Translate((U32)(op), 1))
 #define PushOpParam(op, param) PushOp(op); PushU32_(&ops, (U32)(param)); PushU32_(&isDynamic, 0)
 #else
-#define PushU32(v) PushU32_(&ops, (U32)(v))
-#define PushI32(v) PushU32_(&ops, (U32)(v))
-#define PushFloat(v) convFloat.f=(float)(v); PushU32_(&ops, convFloat.u32)
-#define PushDouble(v) convDouble.d=(double)(v); PushU32_(&ops, convDouble.u32.a); PushU32_(&ops, convDouble.u32.b)
-#define PushPTR(ptr) PushU32_(&ops, (U32)(ptr))
-#define PushOp(op) PushU32_(&ops, Translate((U32)(op), 0))
-#define PushOpParam(op, param) PushOp(op); PushU32_(&ops, (U32)(param))
+#define PushU32(v) PushU32_(&ops, (U32)(v), -1)
+#define PushI32(v) PushU32_(&ops, (U32)(v), -1)
+#define PushFloat(v) convFloat.f=(float)(v); PushU32_(&ops, convFloat.u32, -1)
+#define PushDouble(v) convDouble.d=(double)(v); PushU32_(&ops, convDouble.u32.a, -1); PushU32_(&ops, convDouble.u32.b, -1)
+#define PushPTR(ptr) PushSizeT_(&ops, (size_t)(ptr), -1)
+
+#define PushOp(op) PushU32_(&ops, Translate((U32)(op), 0), nextOpSequencePoint); //dprintfn("PushOp: 0x%03x (%s)", op, Sys_JIT_OpCodeName(op));
+#define PushOpParam(op, param) PushOp(op); PushU32_(&ops, (U32)(param), -1)
 #endif
 
-#define PushBranch() PushU32_(&branchOffsets, ops.ofs)
+#define PushBranch() PushU32_(&branchOffsets, ops.ofs, -1)
 
 #define PushStackType(type) PushStackType_(&typeStack, type);
 #define PopStackType() (typeStack.ppTypes[--typeStack.ofs])
@@ -104,7 +111,7 @@ static U32 Translate(U32 op, U32 getDynamic) {
 #define PopStackTypeMulti(number) typeStack.ofs -= number
 #define PopStackTypeAll() typeStack.ofs = 0;
 
-#define MayCopyTypeStack() if (u32Value > cilOfs) ppTypeStacks[u32Value] = DeepCopyTypeStack(&typeStack)
+#define MayCopyTypeStack() if (u32Value > cilOfs) DeepCopyTypeStack(ppTypeStacks, u32Value, &typeStack)
 
 static void PushStackType_(tTypeStack *pTypeStack, tMD_TypeDef *pType) {
 	U32 i, size;
@@ -119,16 +126,36 @@ static void PushStackType_(tTypeStack *pTypeStack, tMD_TypeDef *pType) {
 	if (size > pTypeStack->maxBytes) {
 		pTypeStack->maxBytes = size;
 	}
-	//printf("Stack ofs = %d; Max stack size: %d (0x%x)\n", pTypeStack->ofs, size, size);
+	//dprintfn("Stack ofs = %d; Max stack size: %d (0x%x)", pTypeStack->ofs, size, size);
 }
 
-static void PushU32_(tOps *pOps, U32 v) {
+static void PushU32_(tOps *pOps, U32 v, I32 opSequencePoint) {
 	if (pOps->ofs >= pOps->capacity) {
 		pOps->capacity <<= 1;
-//		printf("a.pOps->p = 0x%08x size=%d\n", pOps->p, pOps->capacity * sizeof(U32));
-		pOps->p = realloc(pOps->p, pOps->capacity * sizeof(U32));
+		//dprintfn("a.pOps->p = 0x%08x size=%d", pOps->p, pOps->capacity * sizeof(U32));
+		pOps->p = realloc(pOps->p, pOps->capacity * sizeof(size_t));
+		pOps->pSequencePoints = realloc(pOps->pSequencePoints, pOps->capacity * sizeof(size_t));
 	}
+	pOps->pSequencePoints[pOps->ofs] = opSequencePoint;
 	pOps->p[pOps->ofs++] = v;
+}
+
+static void PushSizeT_(tOps *pOps, size_t v, I32 opSequencePoint) {
+	if (pOps->ofs >= pOps->capacity) {
+		pOps->capacity <<= 1;
+		//dprintfn("a.pOps->p = 0x%08x size=%d", pOps->p, pOps->capacity * sizeof(U32));
+		pOps->p = realloc(pOps->p, pOps->capacity * sizeof(size_t));
+		pOps->pSequencePoints = realloc(pOps->pSequencePoints, pOps->capacity * sizeof(size_t));
+	}
+	pOps->pSequencePoints[pOps->ofs] = opSequencePoint;
+	pOps->p[pOps->ofs++] = v;
+}
+
+static U32 GetUnalignedU16(U8 *pCIL, U32 *pCILOfs) {
+	U32 a, b;
+	a = pCIL[(*pCILOfs)++];
+	b = pCIL[(*pCILOfs)++];
+	return a | (b << 8);
 }
 
 static U32 GetUnalignedU32(U8 *pCIL, U32 *pCILOfs) {
@@ -140,19 +167,29 @@ static U32 GetUnalignedU32(U8 *pCIL, U32 *pCILOfs) {
 	return a | (b << 8) | (c << 16) | (d << 24);
 }
 
-static tTypeStack* DeepCopyTypeStack(tTypeStack *pToCopy) {
+static void FreeTypeStack(tTypeStack *pStack) {
+	if (pStack != NULL) {
+		if (pStack->ppTypes != NULL) {
+			free(pStack->ppTypes);
+		}
+		free(pStack);
+	}
+}
+
+static void DeepCopyTypeStack(tTypeStack **ppTypeStacks, U32 index, tTypeStack *pCopyFrom) {
 	tTypeStack *pCopy;
 
-	pCopy = TMALLOC(tTypeStack);
-	pCopy->maxBytes = pToCopy->maxBytes;
-	pCopy->ofs = pToCopy->ofs;
-	if (pToCopy->ofs > 0) {
-		pCopy->ppTypes = malloc(pToCopy->ofs * sizeof(tMD_TypeDef*));
-		memcpy(pCopy->ppTypes, pToCopy->ppTypes, pToCopy->ofs * sizeof(tMD_TypeDef*));
+	pCopy = TMALLOC(1, tTypeStack);
+	pCopy->maxBytes = pCopyFrom->maxBytes;
+	pCopy->ofs = pCopyFrom->ofs;
+	if (pCopyFrom->ofs > 0) {
+		pCopy->ppTypes = TMALLOC(pCopyFrom->ofs, tMD_TypeDef*);
+		memcpy(pCopy->ppTypes, pCopyFrom->ppTypes, pCopyFrom->ofs * sizeof(tMD_TypeDef*));
 	} else {
 		pCopy->ppTypes = NULL;
 	}
-	return pCopy;
+	FreeTypeStack(ppTypeStacks[index]);
+	ppTypeStacks[index] = pCopy;
 }
 
 static void RestoreTypeStack(tTypeStack *pMainStack, tTypeStack *pCopyFrom) {
@@ -229,7 +266,11 @@ static U32 GenCombined(tOps *pOps, tOps *pIsDynamic, U32 startOfs, U32 count, U3
 }
 #endif
 
-static U32* JITit(tMD_MethodDef *pMethodDef, U8 *pCIL, U32 codeSize, tParameter *pLocals, tJITted *pJITted, U32 genCombinedOpcodes) {
+static UNUSED void SetBreakPoint(UNUSED tMD_MethodDef*  pMethodDef, UNUSED U32 cilOfs, UNUSED tOps ops) {
+
+}
+
+static size_t* JITit(tMD_MethodDef* pMethodDef, U8 *pCIL, U32 codeSize, tParameter *pLocals, tJITted *pJITted, U32 genCombinedOpcodes, size_t **ppSequencePoints) {
 	U32 maxStack = pJITted->maxStack;
 	U32 i;
 	U32 cilOfs;
@@ -238,7 +279,7 @@ static U32* JITit(tMD_MethodDef *pMethodDef, U8 *pCIL, U32 codeSize, tParameter 
 	U32 *pJITOffsets;	// To store the JITted code offset of each CIL byte.
 						// Only CIL bytes that are the first byte of an instruction will have meaningful data
 	tTypeStack **ppTypeStacks; // To store the evaluation stack state for forward jumps
-	U32 *pFinalOps;
+	size_t *pFinalOps;
 	tMD_TypeDef *pStackType;
 	tTypeStack typeStack;
 
@@ -253,29 +294,59 @@ static U32* JITit(tMD_MethodDef *pMethodDef, U8 *pCIL, U32 codeSize, tParameter 
 	tMD_TypeDef *pTypeA, *pTypeB;
 	PTR pMem;
 	tMetaData *pMetaData;
+	tDebugMetaData* pDebugMetadata;
+	tDebugMetaDataEntry* pDebugMetadataEntry = NULL;
+	int sequencePointIndex;
+
+	//dprintfn("JIT-ting method: %s.%s", pMethodDef->pParentType->nameSpace, pMethodDef->name);
 
 	pMetaData = pMethodDef->pMetaData;
-	pJITOffsets = malloc(codeSize * sizeof(U32));
+	pDebugMetadata = pMetaData->debugMetadata;
+
+	// TODO: Use a hash table as this is super slow
+	if (pDebugMetadata != NULL) {
+		tDebugMetaDataEntry* pEntry = pDebugMetadata->entries;
+
+		while (pEntry != NULL) {
+			// TODO: Compare namespace, type and module name
+			if (strcmp(pEntry->pMethodName, pMethodDef->name) == 0) {
+				if (pMethodDef->pParentType != NULL) {
+					if (strcmp(pEntry->pClassName, pMethodDef->pParentType->name) == 0 && strcmp(pEntry->pNamespaceName, pMethodDef->pParentType->nameSpace) == 0) {
+						pDebugMetadataEntry = pEntry;
+						break;
+					}
+				}
+				else {
+					pDebugMetadataEntry = pEntry;
+					break;
+				}
+			}
+			pEntry = pEntry->next;
+		}
+	}
+
+	pJITOffsets = TMALLOC(codeSize, U32);
 	// + 1 to handle cases where the stack is being restored at the last instruction in a method
-	ppTypeStacks = malloc((codeSize + 1) * sizeof(tTypeStack*));
-	memset(ppTypeStacks, 0, (codeSize + 1) * sizeof(tTypeStack*));
+	ppTypeStacks = TCALLOC(codeSize + 1, tTypeStack*);
+	//memset(ppTypeStacks, 0, (codeSize + 1) * sizeof(tTypeStack*));
 	typeStack.maxBytes = 0;
 	typeStack.ofs = 0;
-	typeStack.ppTypes = malloc(maxStack * sizeof(tMD_TypeDef*));
+	typeStack.ppTypes = TMALLOC(maxStack, tMD_TypeDef*);
+	sequencePointIndex = 0;
 
 	// Set up all exception 'catch' blocks with the correct stack information,
 	// So they'll have just the exception type on the stack when entered
 	for (i=0; i<pJITted->numExceptionHandlers; i++) {
 		tExceptionHeader *pEx;
 
-		pEx = &pJITted->pExceptionHeaders[i]; 
+		pEx = &pJITted->pExceptionHeaders[i];
 		if (pEx->flags == COR_ILEXCEPTION_CLAUSE_EXCEPTION) {
 			tTypeStack *pTypeStack;
 
-			ppTypeStacks[pEx->handlerStart] = pTypeStack = TMALLOC(tTypeStack);
+			ppTypeStacks[pEx->handlerStart] = pTypeStack = TMALLOC(1, tTypeStack);
 			pTypeStack->maxBytes = 4;
 			pTypeStack->ofs = 1;
-			pTypeStack->ppTypes = TMALLOC(tMD_TypeDef*);
+			pTypeStack->ppTypes = TMALLOC(1, tMD_TypeDef*);
 			pTypeStack->ppTypes[0] = pEx->u.pCatchTypeDef;
 		}
 	}
@@ -288,18 +359,37 @@ static U32* JITit(tMD_MethodDef *pMethodDef, U8 *pCIL, U32 codeSize, tParameter 
 
 	cilOfs = 0;
 
+	int nextOpSequencePoint = -1;
 	do {
 		U8 op;
 
 		// Set the JIT offset for this CIL opcode
 		pJITOffsets[cilOfs] = ops.ofs;
 
+		U32 pcilOfs = cilOfs;
+
 		op = pCIL[cilOfs++];
-		//printf("Opcode: 0x%02x\n", op);
+		//U32 op2 = (op == CIL_EXTENDED) ? 0xFE00 + pCIL[cilOfs] : op;
+		//dprintfn("CIL op: 0x%02x (%s)", op2, Sys_CIL_OpCodeName(op2));
+
+		if (pDebugMetadataEntry != NULL && sequencePointIndex < pDebugMetadataEntry->sequencePointsCount) {
+			U32 spOffset = pDebugMetadataEntry->sequencePoints[sequencePointIndex];
+			if (spOffset == pcilOfs) {
+				nextOpSequencePoint = sequencePointIndex;
+				sequencePointIndex++;
+			} else {
+				nextOpSequencePoint = -1;
+			}
+		}
 
 		switch (op) {
 			case CIL_NOP:
-				PushOp(JIT_NOP);
+				{
+					PushOp(JIT_NOP);
+				}
+				break;
+			case CIL_BREAK:
+				Crash("Break-point requested.");
 				break;
 
 			case CIL_LDNULL:
@@ -531,6 +621,9 @@ cilLdInd:
 			case CIL_STIND_I1:
 			case CIL_STIND_I2:
 			case CIL_STIND_I4:
+			case CIL_STIND_I8:
+			case CIL_STIND_R4:
+			case CIL_STIND_R8:
 				PopStackTypeMulti(2); // Don't care what they are
 				PushOp(JIT_STOREINDIRECT_REF + (op - CIL_STIND_REF));
 				break;
@@ -545,19 +638,21 @@ cilLdInd:
 				{
 					tMD_MethodDef *pCallMethod;
 					tMD_TypeDef *pBoxCallType;
-					U32 derefRefType;
+					U32 derefRefType = 0;
+					U8 dynamicallyBoxReturnValue = 0;
 
 					u32Value2 = 0;
 
 cilCallVirtConstrained:
 					pBoxCallType = NULL;
 					derefRefType = 0;
+					dynamicallyBoxReturnValue = 0;
 
 					u32Value = GetUnalignedU32(pCIL, &cilOfs);
 					pCallMethod = MetaData_GetMethodDefFromDefRefOrSpec(pMetaData, u32Value, pMethodDef->pParentType->ppClassTypeArgs, pMethodDef->ppMethodTypeArgs);
 					if (pCallMethod->isFilled == 0) {
 						tMD_TypeDef *pTypeDef;
-						
+
 						pTypeDef = MetaData_GetTypeDefFromMethodDef(pCallMethod);
 						MetaData_Fill_TypeDef(pTypeDef, NULL, NULL);
 					}
@@ -567,43 +662,45 @@ cilCallVirtConstrained:
 						tMD_TypeDef *pConstrainedType;
 
 						pConstrainedType = MetaData_GetTypeDefFromDefRefOrSpec(pMetaData, u32Value2, pMethodDef->pParentType->ppClassTypeArgs, pMethodDef->ppMethodTypeArgs);
+						MetaData_Fill_TypeDef(pConstrainedType, NULL, NULL);
+
 						if (TYPE_ISINTERFACE(pCallMethod->pParentType)) {
-							u32Value2 = 0xffffffff;
 							// Find the interface that we're dealing with
 							for (i=0; i<pConstrainedType->numInterfaces; i++) {
 								if (pConstrainedType->pInterfaceMaps[i].pInterface == pCallMethod->pParentType) {
-									u32Value2 = pConstrainedType->pInterfaceMaps[i].pVTableLookup[pCallMethod->vTableOfs];
-									break;
+									U32 vTableOfs = pConstrainedType->pInterfaceMaps[i].pVTableLookup[pCallMethod->vTableOfs];
+									// if method is implemented on this class, make it a normal CALL op
+									if (pConstrainedType->pVTable[vTableOfs]->pParentType == pConstrainedType) {
+										op = CIL_CALL;
+										pCallMethod = pConstrainedType->pVTable[vTableOfs];
+										//dprintfn("Calling interface method: %s", pCallMethod->name);
+										goto cilCallAll;
+									}
 								}
 							}
-							Assert(u32Value2 != 0xffffffff);
-							if (pConstrainedType->pVTable[u32Value2]->pParentType == pConstrainedType) {
-								// This method is implemented on this class, so make it a normal CALL op
-								op = CIL_CALL;
-								pCallMethod = pConstrainedType->pVTable[u32Value2];
-							}
-						} else {
-							if (pConstrainedType->isValueType) {
-								tMD_MethodDef *pImplMethod;
-								// If pConstraintedType directly implements the call then don't do anything
-								// otherwise the 'this' pointer must be boxed (BoxedCall)
-								pImplMethod = pConstrainedType->pVTable[pCallMethod->vTableOfs];
+						}
+
+						if (pConstrainedType->isValueType) {
+							// If pConstrainedType directly implements the call then don't do anything
+							// otherwise the 'this' pointer must be boxed (BoxedCall)
+							if (pCallMethod->vTableOfs != 0xffffffff) {
+								tMD_MethodDef *pImplMethod = pConstrainedType->pVTable[pCallMethod->vTableOfs];
 								if (pImplMethod->pParentType == pConstrainedType) {
 									op = CIL_CALL;
 									pCallMethod = pImplMethod;
-								} else {
-									pBoxCallType = pConstrainedType;
+									goto cilCallAll;
 								}
-							} else {
-								// Reference-type, so dereference the PTR to 'this' and use that for the 'this' for the call.
-								derefRefType = 1;
 							}
+							pBoxCallType = pConstrainedType;
+						} else {
+							// Reference-type, so dereference the PTR to 'this' and use that for the 'this' for the call.
+							derefRefType = 1;
 						}
 					}
-
+cilCallAll:
 					// Pop stack type for each argument. Don't actually care what these are,
 					// except the last one which will be the 'this' object type of a non-static method
-					//printf("Call %s() - popping %d stack args\n", pCallMethod->name, pCallMethod->numberOfParameters);
+					//dprintfn("Call %s() - popping %d stack args", pCallMethod->name, pCallMethod->numberOfParameters);
 					for (i=0; i<pCallMethod->numberOfParameters; i++) {
 						pStackType = PopStackType();
 					}
@@ -612,10 +709,15 @@ cilCallVirtConstrained:
 						pStackType = types[TYPE_SYSTEM_OBJECT];
 					}
 					MetaData_Fill_TypeDef(pStackType, NULL, NULL);
-					if (TYPE_ISINTERFACE(pCallMethod->pParentType) && op == CIL_CALLVIRT) {
-						PushOp(JIT_CALL_INTERFACE);
-					} else if (pCallMethod->pParentType->pParent == types[TYPE_SYSTEM_MULTICASTDELEGATE]) {
+
+					//if (TYPE_ISINTERFACE(pCallMethod->pParentType) && op == CIL_CALLVIRT) {
+					//	PushOp(JIT_CALL_INTERFACE);
+					//} else 
+					if (pCallMethod->pParentType->pParent == types[TYPE_SYSTEM_MULTICASTDELEGATE]) {
 						PushOp(JIT_INVOKE_DELEGATE);
+					} else if (pCallMethod->pParentType == types[TYPE_SYSTEM_REFLECTION_METHODBASE] && strcmp(pCallMethod->name, "Invoke") == 0) {
+						PushOp(JIT_INVOKE_SYSTEM_REFLECTION_METHODBASE);
+						dynamicallyBoxReturnValue = 1;
 					} else {
 						switch (pStackType->stackType)
 						{
@@ -651,6 +753,10 @@ cilCallVirtConstrained:
 
 					if (pCallMethod->pReturnType != NULL) {
 						PushStackType(pCallMethod->pReturnType);
+					}
+
+					if (dynamicallyBoxReturnValue) {
+						PushOp(JIT_REFLECTION_DYNAMICALLY_BOX_RETURN_VALUE);
 					}
 				}
 				break;
@@ -694,17 +800,21 @@ cilBr:
 			case CIL_BRFALSE_S:
 			case CIL_BRTRUE_S:
 				u32Value = (I8)pCIL[cilOfs++];
-				u32Value2 = JIT_BRANCH_FALSE + (op - CIL_BRFALSE_S);
+				u32Value2 = (op - CIL_BRFALSE_S);
 				goto cilBrFalseTrue;
 
 			case CIL_BRFALSE:
 			case CIL_BRTRUE:
 				u32Value = GetUnalignedU32(pCIL, &cilOfs);
-				u32Value2 = JIT_BRANCH_FALSE + (op - CIL_BRFALSE);
+				u32Value2 = (op - CIL_BRFALSE);
 cilBrFalseTrue:
-				PopStackTypeDontCare(); // Don't care what it is
+				pStackType = PopStackType();
+				if (pStackType->stackSize > 8) {
+					Crash("JITit(): Cannot perform branch operation on type: %s", pStackType->name);
+				}
 				// Put a temporary CIL offset value into the JITted code. This will be updated later
 				u32Value = cilOfs + (I32)u32Value;
+				u32Value2 = (pStackType->stackSize == 4 ? JIT_BRANCH_FALSE : JIT_BRANCH64_FALSE) + u32Value2;
 				MayCopyTypeStack();
 				PushOp(u32Value2);
 				PushBranch();
@@ -742,8 +852,7 @@ cilBrCond:
 				pTypeA = PopStackType();
 				u32Value = cilOfs + (I32)u32Value;
 				MayCopyTypeStack();
-				if ((pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_INT32) ||
-					(pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_O)) {
+				if (pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_INT32) {
 					PushOp(JIT_BEQ_I32I32 + (op - u32Value2));
 				} else if (pTypeA->stackType == EVALSTACK_INT64 && pTypeB->stackType == EVALSTACK_INT64) {
 					PushOp(JIT_BEQ_I64I64 + (op - u32Value2));
@@ -751,6 +860,12 @@ cilBrCond:
 					PushOp(JIT_BEQ_F32F32 + (op - u32Value2));
 				} else if (pTypeA->stackType == EVALSTACK_F64 && pTypeB->stackType == EVALSTACK_F64) {
 					PushOp(JIT_BEQ_F64F64 + (op - u32Value2));
+				} else if (pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_O) {
+					//pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_INT32 ||
+					//pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_O) {
+					PushOp(JIT_BEQ_I32I32 + (op - u32Value2));
+				} else if (pTypeA->stackType == EVALSTACK_PTR && pTypeB->stackType == EVALSTACK_PTR) {
+					PushOp((sizeof(void*) == 4 ? JIT_BEQ_I32I32 : JIT_BEQ_I64I64) + (op - u32Value2));
 				} else {
 					Crash("JITit(): Cannot perform conditional branch on stack types: %d and %d", pTypeA->stackType, pTypeB->stackType);
 				}
@@ -780,21 +895,24 @@ cilBrCond:
 cilBinaryArithOp:
 				pTypeB = PopStackType();
 				pTypeA = PopStackType();
-				if (pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_INT32) {
+				if ((pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_INT32)) {
 					PushOp(JIT_ADD_I32I32 + (op - CIL_ADD) - u32Value);
-					PushStackType(types[TYPE_SYSTEM_INT32]);
 				} else if (pTypeA->stackType == EVALSTACK_INT64 && pTypeB->stackType == EVALSTACK_INT64) {
 					PushOp(JIT_ADD_I64I64 + (op - CIL_ADD) - u32Value);
-					PushStackType(types[TYPE_SYSTEM_INT64]);
 				} else if (pTypeA->stackType == EVALSTACK_F32 && pTypeB->stackType == EVALSTACK_F32) {
 					PushOp(JIT_ADD_F32F32 + (op - CIL_ADD) - u32Value);
-					PushStackType(pTypeA);
 				} else if (pTypeA->stackType == EVALSTACK_F64 && pTypeB->stackType == EVALSTACK_F64) {
 					PushOp(JIT_ADD_F64F64 + (op - CIL_ADD) - u32Value);
-					PushStackType(pTypeA);
+				} else if (pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_O) {
+					//pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_INT32 ||
+					//pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_O) {
+					PushOp(JIT_ADD_I32I32 + (op - CIL_ADD) - u32Value);
+				} else if (pTypeA->stackType == EVALSTACK_PTR && pTypeB->stackType == EVALSTACK_INT32 && (op == CIL_ADD || op == CIL_SUB)) {
+					PushOp((sizeof(void*) == 4 ? JIT_ADD_I32I32 : JIT_ADD_I64I64) + (op - CIL_ADD));
 				} else {
 					Crash("JITit(): Cannot perform binary numeric operand on stack types: %d and %d", pTypeA->stackType, pTypeB->stackType);
 				}
+				PushStackType(pTypeA);
 				break;
 
 			case CIL_NEG:
@@ -806,6 +924,12 @@ cilBinaryArithOp:
 				} else if (pTypeA->stackType == EVALSTACK_INT64) {
 					PushOp(JIT_NEG_I64 + (op - CIL_NEG));
 					PushStackType(types[TYPE_SYSTEM_INT64]);
+				} else if (pTypeA->stackType == EVALSTACK_F32) {
+					PushOp(JIT_NEG_F32);
+					PushStackType(types[TYPE_SYSTEM_SINGLE]);
+				} else if (pTypeA->stackType == EVALSTACK_F64) {
+					PushOp(JIT_NEG_F64);
+					PushStackType(types[TYPE_SYSTEM_DOUBLE]);
 				} else {
 					Crash("JITit(): Cannot perform unary operand on stack types: %d", pTypeA->stackType);
 				}
@@ -848,6 +972,7 @@ cilBinaryArithOp:
 			case CIL_CONV_OVF_I4: // Fix this later - will never overflow
 			case CIL_CONV_OVF_I4_UN: // Fix this later - will never overflow
 			case CIL_CONV_I: // Only on 32-bit
+			case CIL_CONV_OVF_I: // Only on 32-bit
 			case CIL_CONV_OVF_I_UN: // Only on 32-bit; Fix this later - will never overflow
 				toBitCount = 32;
 				toType = TYPE_SYSTEM_INT32;
@@ -870,6 +995,7 @@ cilConvInt32:
 			case CIL_CONV_OVF_U4: // Fix this later - will never overflow
 			case CIL_CONV_OVF_U4_UN: // Fix this later - will never overflow
 			case CIL_CONV_U: // Only on 32-bit
+			case CIL_CONV_OVF_U: // Only on 32-bit
 			case CIL_CONV_OVF_U_UN: // Only on 32-bit; Fix this later - will never overflow
 				toBitCount = 32;
 				toType = TYPE_SYSTEM_UINT32;
@@ -1214,24 +1340,45 @@ conv2:
 			case CIL_LDFLD:
 				{
 					tMD_FieldDef *pFieldDef;
+					tMD_TypeDef *pTypeDef;
 
 					// Get the FieldRef or FieldDef of the field to load
 					u32Value = GetUnalignedU32(pCIL, &cilOfs);
 					pFieldDef = MetaData_GetFieldDefFromDefOrRef(pMethodDef->pMetaData, u32Value, pMethodDef->pParentType->ppClassTypeArgs, pMethodDef->ppMethodTypeArgs);
+					// Sometimes, the type def will not have been filled, so ensure it's filled.
+					pTypeDef = MetaData_GetTypeDefFromFieldDef(pFieldDef);
+					MetaData_Fill_TypeDef(pTypeDef, NULL, NULL);
+
 					// Pop the object/valuetype on which to load the field.
 					pStackType = PopStackType();
-					if (pStackType->stackType == EVALSTACK_VALUETYPE) {
-						PushOpParam(JIT_LOADFIELD_VALUETYPE, pStackType->stackSize);
-						PushPTR(pFieldDef);
-					} else {
+
+					switch (pStackType->stackType)
+					{
+					case EVALSTACK_INTNATIVE:
+					case EVALSTACK_INT32:
+					case EVALSTACK_F32:
+					case EVALSTACK_PTR:
+					case EVALSTACK_O:
 						if (pFieldDef->memSize <= 4) {
-							PushOp(JIT_LOADFIELD_4);
-							PushU32(pFieldDef->memOffset);
-						} else {
+							PushOpParam(JIT_LOADFIELD_4, pFieldDef->memOffset);
+						}
+						else {
 							PushOp(JIT_LOADFIELD);
 							PushPTR(pFieldDef);
 						}
+						break;
+					case EVALSTACK_INT64:
+					case EVALSTACK_F64:
+						PushOpParam(JIT_LOADFIELD_8, pFieldDef->memOffset);
+						break;
+					case EVALSTACK_VALUETYPE:
+						PushOpParam(JIT_LOADFIELD_VALUETYPE, pStackType->stackSize);
+						PushPTR(pFieldDef);
+						break;
+					default:
+						Crash("JITit(): Cannot load field on stack type: %d", pStackType->stackType);
 					}
+
 					// Push the stack type of the just-read field
 					PushStackType(pFieldDef->pType);
 				}
@@ -1411,6 +1558,7 @@ cilLeave:
 					break;
 
 				case CILX_LOADFUNCTION:
+				case CILX_LOADVIRTFN:
 					{
 						tMD_MethodDef *pFuncMethodDef;
 
@@ -1429,10 +1577,7 @@ cilLeave:
 				case CILX_CLT_UN:
 					pTypeB = PopStackType();
 					pTypeA = PopStackType();
-					if ((pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_INT32) ||
-						(pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_O) ||
-						// Next line: only on 32-bit
-						(pTypeA->stackType == EVALSTACK_PTR && pTypeB->stackType == EVALSTACK_PTR)) {
+					if (pTypeA->stackType == EVALSTACK_INT32 && pTypeB->stackType == EVALSTACK_INT32) {
 						PushOp(JIT_CEQ_I32I32 + (op - CILX_CEQ));
 					} else if (pTypeA->stackType == EVALSTACK_INT64 && pTypeB->stackType == EVALSTACK_INT64) {
 						PushOp(JIT_CEQ_I64I64 + (op - CILX_CEQ));
@@ -1440,27 +1585,47 @@ cilLeave:
 						PushOp(JIT_CEQ_F32F32 + (op - CILX_CEQ));
 					} else if (pTypeA->stackType == EVALSTACK_F64 && pTypeB->stackType == EVALSTACK_F64) {
 						PushOp(JIT_CEQ_F64F64 + (op - CILX_CEQ));
+					} else if (pTypeA->stackType == EVALSTACK_O && pTypeB->stackType == EVALSTACK_O) {
+						PushOp(JIT_CEQ_I32I32 + (op - CILX_CEQ));
+					} else if (pTypeA->stackType == EVALSTACK_PTR && pTypeB->stackType == EVALSTACK_PTR) {
+						PushOp((sizeof(void*) == 4 ? JIT_CEQ_I32I32 : JIT_CEQ_I64I64) + (op - CILX_CEQ));
 					} else {
 						Crash("JITit(): Cannot perform comparison operand on stack types: %s and %s", pTypeA->name, pTypeB->name);
 					}
 					PushStackType(types[TYPE_SYSTEM_INT32]);
 					break;
-					
+
+				case CILX_LDLOC:
+					u32Value = GetUnalignedU16(pCIL, &cilOfs);
+					goto cilLdLoc;
+
+				case CILX_STLOC:
+					u32Value = GetUnalignedU16(pCIL, &cilOfs);
+					goto cilStLoc;
+
 				case CILX_RETHROW:
 					PushOp(JIT_RETHROW);
 					break;
 
 				case CILX_CONSTRAINED:
 					u32Value2 = GetUnalignedU32(pCIL, &cilOfs);
-					cilOfs++;
+					op = pCIL[cilOfs++]; // always CIL_CALLVIRT
 					goto cilCallVirtConstrained;
 
 				case CILX_READONLY:
 					// Do nothing
 					break;
 
+				case CILX_VOLATILE:
+					// Do nothing
+					break;
+
+				case CILX_TAIL:
+					PushOp(JIT_TAILCALL_PREFIX);
+					break;
+					
 				default:
-					Crash("JITit(): JITter cannot handle extended op-code:0x%02x", op);
+					Crash("JITit(): JITter cannot handle extended op-code: 0x%02x", op);
 
 				}
 				break;
@@ -1504,6 +1669,8 @@ cilLeave:
 
 #ifdef GEN_COMBINED_OPCODES
 	// Find any candidates for instruction combining
+	// WARNING: The logic here doesn't yet corresponding fix up the sequence points we're tracking for debugging
+	//          That's OK right now because none of this optimisation is actually used in current builds.
 	if (genCombinedOpcodes) {
 		U32 inst0 = 0;
 		while (inst0 < ops.ofs) {
@@ -1533,7 +1700,7 @@ cilLeave:
 			shrinkOpsBy = 0;
 			if (opCodeCount > 1) {
 				U32 combinedSize;
-				tCombinedOpcodesMem *pCOMem = TMALLOC(tCombinedOpcodesMem);
+				tCombinedOpcodesMem *pCOMem = TMALLOC(1, tCombinedOpcodesMem);
 				shrinkOpsBy = GenCombined(&ops, &isDynamic, inst0, instCount, &combinedSize, &pCOMem->pMem);
 				pCOMem->pNext = pJITted->pCombinedOpcodesMem;
 				pJITted->pCombinedOpcodesMem = pCOMem;
@@ -1582,10 +1749,8 @@ combineDone:
 
 	free(typeStack.ppTypes);
 
-	for (i=0; i<codeSize; i++) {
-		if (ppTypeStacks[i] != NULL) {
-			free(ppTypeStacks[i]->ppTypes);
-		}
+	for (i=0; i <= codeSize; i++) {
+		FreeTypeStack(ppTypeStacks[i]);
 	}
 	free(ppTypeStacks);
 
@@ -1594,8 +1759,18 @@ combineDone:
 
 	// Copy ops to some memory of exactly the correct size. To not waste memory.
 	u32Value = ops.ofs * sizeof(U32);
-	pFinalOps = genCombinedOpcodes?malloc(u32Value):mallocForever(u32Value);
+	pFinalOps = genCombinedOpcodes ? malloc(u32Value) : mallocForever(u32Value);
 	memcpy(pFinalOps, ops.p, u32Value);
+
+	pJITted->pDebugMetadataEntry = pDebugMetadataEntry;
+	if (pDebugMetadataEntry != NULL) {
+		*ppSequencePoints = mallocForever(u32Value);
+		memcpy(*ppSequencePoints, ops.pSequencePoints, u32Value);
+	} else {
+		// This method has no debug info
+		*ppSequencePoints = NULL;
+	}
+
 	DeleteOps(ops);
 #ifdef GEN_COMBINED_OPCODES
 	pJITted->opsMemSize += u32Value;
@@ -1616,13 +1791,13 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 	IDX_TABLE localsToken;
 	U8 *pCIL;
 	SIG sig;
-	U32 i, sigLength, numLocals;
+	U32 sigLength;
 	tParameter *pLocals;
 
 	log_f(2, "JIT:   %s\n", Sys_GetMethodDesc(pMethodDef));
 
 	pMetaData = pMethodDef->pMetaData;
-	pJITted = (genCombinedOpcodes)?TMALLOC(tJITted):TMALLOCFOREVER(tJITted);
+	pJITted = (genCombinedOpcodes) ? TMALLOC(1, tJITted) : TMALLOCFOREVER(1, tJITted);
 #ifdef GEN_COMBINED_OPCODES
 	pJITted->pCombinedOpcodesMem = NULL;
 	pJITted->opsMemSize = 0;
@@ -1646,14 +1821,15 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 		} else {
 			pJITted->maxStack = (pMethodDef->pReturnType == NULL)?0:pMethodDef->pReturnType->stackSize; // For return value
 		}
-		pCallNative = TMALLOCFOREVER(tJITCallNative);
+		pCallNative = TMALLOCFOREVER(1, tJITCallNative);
 		pCallNative->opCode = Translate(JIT_CALL_NATIVE, 0);
 		pCallNative->pMethodDef = pMethodDef;
 		pCallNative->fn = InternalCall_Map(pMethodDef);
 		pCallNative->retOpCode = Translate(JIT_RETURN, 0);
 
 		pJITted->localsStackSize = 0;
-		pJITted->pOps = (U32*)pCallNative;
+		pJITted->pOps = (size_t*)pCallNative;
+		pJITted->pOpSequencePoints = NULL;
 
 		return;
 	}
@@ -1667,7 +1843,7 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 			Crash("PInvoke library or function not found: %s()", pImplMap->importName);
 		}
 
-		pCallPInvoke = TMALLOCFOREVER(tJITCallPInvoke);
+		pCallPInvoke = TMALLOCFOREVER(1, tJITCallPInvoke);
 		pCallPInvoke->opCode = Translate(JIT_CALL_PINVOKE, 0);
 		pCallPInvoke->fn = fn;
 		pCallPInvoke->pMethod = pMethodDef;
@@ -1675,7 +1851,8 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 
 		pJITted->localsStackSize = 0;
 		pJITted->maxStack = (pMethodDef->pReturnType == NULL)?0:pMethodDef->pReturnType->stackSize; // For return value
-		pJITted->pOps = (U32*)pCallPInvoke;
+		pJITted->pOps = (size_t*)pCallPInvoke;
+		pJITted->pOpSequencePoints = NULL;
 
 		return;
 	}
@@ -1707,7 +1884,7 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 			//pJITted->pExceptionHeaders = (tExceptionHeader*)(pMethodHeader + 4);
 			exSize = numClauses * sizeof(tExceptionHeader);
 			pJITted->pExceptionHeaders =
-				(tExceptionHeader*)(genCombinedOpcodes?malloc(exSize):mallocForever(exSize));
+				(tExceptionHeader*)(genCombinedOpcodes ? malloc(exSize) : mallocForever(exSize));
 			memcpy(pJITted->pExceptionHeaders, pMethodHeader + 4, exSize);
 		} else {
 			// Thin header
@@ -1717,10 +1894,10 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 			numClauses = (((U8*)pMethodHeader)[1] - 4) / 12;
 			exSize = numClauses * sizeof(tExceptionHeader);
 			pMethodHeader += 4;
-			//pExHeaders = pJITted->pExceptionHeaders = (tExceptionHeader*)mallocForever(numClauses * sizeof(tExceptionHeader));
+			//pExHeaders = pJITted->pExceptionHeaders = TMALLOCFOREVER(numClauses, tExceptionHeader);
 			pExHeaders = pJITted->pExceptionHeaders =
-				(tExceptionHeader*)(genCombinedOpcodes?malloc(exSize):mallocForever(exSize));
-			for (i=0; i<numClauses; i++) {
+				(tExceptionHeader*)(genCombinedOpcodes ? malloc(exSize) : mallocForever(exSize));
+			for (U32 i=0; i<numClauses; i++) {
 				pExHeaders[i].flags = ((U16*)pMethodHeader)[0];
 				pExHeaders[i].tryStart = ((U16*)pMethodHeader)[1];
 				pExHeaders[i].tryEnd = ((U8*)pMethodHeader)[4];
@@ -1733,7 +1910,7 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 		}
 		pJITted->numExceptionHandlers = numClauses;
 		// replace all classToken's with the actual tMD_TypeDef*
-		for (i=0; i<numClauses; i++) {
+		for (U32 i=0; i<numClauses; i++) {
 			if (pJITted->pExceptionHeaders[i].flags == COR_ILEXCEPTION_CLAUSE_EXCEPTION) {
 				pJITted->pExceptionHeaders[i].u.pCatchTypeDef =
 					MetaData_GetTypeDefFromDefRefOrSpec(pMethodDef->pMetaData, pJITted->pExceptionHeaders[i].u.classToken, pMethodDef->pParentType->ppClassTypeArgs, pMethodDef->ppMethodTypeArgs);
@@ -1751,15 +1928,15 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 		pLocals = NULL;
 	} else {
 		tMD_StandAloneSig *pStandAloneSig;
-		U32 i, totalSize;
+		U32 totalSize, numLocals;
 
 		pStandAloneSig = (tMD_StandAloneSig*)MetaData_GetTableRow(pMethodDef->pMetaData, localsToken);
 		sig = MetaData_GetBlob(pStandAloneSig->signature, &sigLength);
 		MetaData_DecodeSigEntry(&sig); // Always 0x07
 		numLocals = MetaData_DecodeSigEntry(&sig);
-		pLocals = (tParameter*)malloc(numLocals * sizeof(tParameter));
+		pLocals = TMALLOC(numLocals, tParameter);
 		totalSize = 0;
-		for (i=0; i<numLocals; i++) {
+		for (U32 i=0; i<numLocals; i++) {
 			tMD_TypeDef *pTypeDef;
 
 			pTypeDef = Type_GetTypeFromSig(pMethodDef->pMetaData, &sig, pMethodDef->pParentType->ppClassTypeArgs, pMethodDef->ppMethodTypeArgs);
@@ -1773,7 +1950,9 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 	}
 
 	// JIT the CIL code
-	pJITted->pOps = JITit(pMethodDef, pCIL, codeSize, pLocals, pJITted, genCombinedOpcodes);
+	size_t *pSequencePoints;
+	pJITted->pOps = JITit(pMethodDef, pCIL, codeSize, pLocals, pJITted, genCombinedOpcodes, &pSequencePoints);
+	pJITted->pOpSequencePoints = pSequencePoints;
 
 	free(pLocals);
 }

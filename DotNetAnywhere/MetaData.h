@@ -65,7 +65,26 @@ struct tTables_ {
 };
 
 typedef struct tMetaData_ tMetaData;
+typedef struct tDebugMetaData_ tDebugMetaData;
+typedef struct tDebugMetaDataEntry_ tDebugMetaDataEntry;
+
+struct tDebugMetaDataEntry_ {
+    char* pModuleName;
+    char* pNamespaceName;
+    char* pClassName;
+    char* pMethodName;
+    char* pID;
+    int sequencePointsCount;
+    int sequencePoints[100];
+    tDebugMetaDataEntry* next;
+};
+
+struct tDebugMetaData_ {
+    tDebugMetaDataEntry* entries;
+};
+
 struct tMetaData_ {
+    tDebugMetaData* debugMetadata;
 	tMetaDataStrings strings;
 	tMetaDataBlobs blobs;
 	tMetaDataUserStrings userStrings;
@@ -90,8 +109,19 @@ struct tMetaData_ {
 #define FIELDATTRIBUTES_LITERAL 0x40 // compile-time constant
 #define FIELDATTRIBUTES_HASFIELDRVA 0x100
 
-#define SIG_METHODDEF_GENERIC 0x10
-#define SIG_METHODDEF_HASTHIS 0x20
+#define SIG_CALLCONV_DEFAULT 0x0
+#define SIG_CALLCONV_VARARG 0x5
+#define SIG_CALLCONV_FIELD 0x6
+#define SIG_CALLCONV_LOCAL_SIG 0x7
+#define SIG_CALLCONV_PROPERTY 0x8
+#define SIG_CALLCONV_UNMGD 0x9
+#define SIG_CALLCONV_GENERICINST 0xa
+#define SIG_CALLCONV_NATIVEVARARG 0xb
+#define SIG_CALLCONV_MAX 0xc
+#define SIG_CALLCONV_MASK 0x0f
+#define SIG_CALLCONV_GENERIC 0x10
+#define SIG_CALLCONV_HASTHIS 0x20
+#define SIG_CALLCONV_EXPLICITTHIS 0x40
 
 #define IMPLMAP_FLAGS_CHARSETMASK 0x0006
 #define IMPLMAP_FLAGS_CHARSETNOTSPEC 0x0000
@@ -146,6 +176,7 @@ struct tInterfaceMap_ {
 // static functions
 void MetaData_Init();
 unsigned int MetaData_DecodeSigEntry(SIG *pSig);
+unsigned int MetaData_DecodeSigEntryExt(SIG *pSig, int coerceFFToZero);
 IDX_TABLE MetaData_DecodeSigEntryToken(SIG *pSig);
 unsigned int MetaData_DecodeHeapEntryLength(unsigned char **ppHeapEntry);
 
@@ -158,6 +189,9 @@ void MetaData_Fill_TypeDef_(tMD_TypeDef *pTypeDef, tMD_TypeDef **ppClassTypeArgs
 void MetaData_Fill_FieldDef(tMD_TypeDef *pParentType, tMD_FieldDef *pFieldDef, U32 memOffset, tMD_TypeDef **ppClassTypeArgs);
 void MetaData_Fill_MethodDef(tMD_TypeDef *pParentType, tMD_MethodDef *pMethodDef, tMD_TypeDef **ppClassTypeArgs, tMD_TypeDef **ppMethodTypeArgs);
 
+tMD_MethodDef* FindVirtualOverriddenMethod(tMD_TypeDef *pTypeDef, tMD_MethodDef *pMethodDef);
+tMD_MethodDef* FindMethodInType(tMD_TypeDef *pTypeDef, STRING name, tMetaData *pSigMetaData, BLOB_ sigBlob, tMD_TypeDef **ppClassTypeArgs, tMD_TypeDef **ppMethodTypeArgs);
+
 // Meta-data searching
 
 U32 MetaData_CompareNameAndSig(STRING name, BLOB_ sigBlob, tMetaData *pSigMetaData, tMD_TypeDef **ppSigClassTypeArgs, tMD_TypeDef **ppSigMethodTypeArgs, tMD_MethodDef *pMethod, tMD_TypeDef **ppMethodClassTypeArgs, tMD_TypeDef **ppMethodMethodTypeArgs);
@@ -166,7 +200,7 @@ tMetaData* MetaData_GetResolutionScopeMetaData(tMetaData *pMetaData, IDX_TABLE r
 
 PTR MetaData_GetTypeMethodField(tMetaData *pMetaData, IDX_TABLE token, U32 *pObjectType, tMD_TypeDef **ppClassTypeArgs, tMD_TypeDef **ppMethodTypeArgs);
 
-tMD_TypeDef* MetaData_GetTypeDefFromName(tMetaData *pMetaData, STRING nameSpace, STRING name, tMD_TypeDef *pInNestedClass);
+tMD_TypeDef* MetaData_GetTypeDefFromName(tMetaData *pMetaData, STRING nameSpace, STRING name, tMD_TypeDef *pInNestedClass, U8 assertExists);
 tMD_TypeDef* MetaData_GetTypeDefFromFullName(STRING assemblyName, STRING nameSpace, STRING name);
 tMD_TypeDef* MetaData_GetTypeDefFromDefRefOrSpec(tMetaData *pMetaData, IDX_TABLE token, tMD_TypeDef **ppClassTypeArgs, tMD_TypeDef **ppMethodTypeArgs);
 tMD_TypeDef* MetaData_GetTypeDefFromMethodDef(tMD_MethodDef *pMethodDef);

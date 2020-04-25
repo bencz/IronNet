@@ -117,35 +117,65 @@ static void AddCombinedJIT(tMD_MethodDef *pMethod) {
 
 #endif
 
-tMethodState* MethodState_Direct(tThread *pThread, tMD_MethodDef *pMethod, tMethodState *pCaller, U32 isInternalNewObjCall) {
+tMethodState* MethodState_Direct(tThread *pThread, tMD_MethodDef *pMethod, tMethodState *pCaller, U32 isInternalNewObjCall, U32 isTailCall) {
 	tMethodState *pThis;
-
 	if (!pMethod->isFilled) {
-		tMD_TypeDef *pTypeDef;
-
-		pTypeDef = MetaData_GetTypeDefFromMethodDef(pMethod);
+		tMD_TypeDef *pTypeDef = MetaData_GetTypeDefFromMethodDef(pMethod);
 		MetaData_Fill_TypeDef(pTypeDef, NULL, NULL);
 	}
-
-	pThis = (tMethodState*)Thread_StackAlloc(pThread, sizeof(tMethodState));
-	pThis->finalizerThis = NULL;
-	pThis->pCaller = pCaller;
-	pThis->pMetaData = pMethod->pMetaData;
-	pThis->pMethod = pMethod;
+	// If method has not already been JITted, do it
 	if (pMethod->pJITted == NULL) {
-		// If method has not already been JITted
 		JIT_Prepare(pMethod, 0);
 	}
+	// the new stack frame size
+	U32 stackFrameSize = pMethod->pJITted->maxStack + pMethod->parameterStackSize + pMethod->pJITted->localsStackSize;
+
+#ifdef _DEBUG
+	//dprintfn("%s => %s, stack: %u %s", (pCaller == NULL ? "" : pCaller->pMethod->name), pMethod->name,
+	//	pThread->pThreadStack->ofs + sizeof(tMethodState) + stackFrameSize, isTailCall ? "(tail)" : "");
+#else
+	// check if caller stack frame reuse is possible
+	if (isTailCall && pMethod != pCaller->pMethod) {
+		isTailCall = isTailCall
+			&& (pCaller->pMethod->pReturnType == pMethod->pReturnType) // same return type
+			&& (pCaller->pMethod->pJITted->numExceptionHandlers == 0)  // no exception handlers
+			&& (pCaller->pNextDelegate == NULL)                        // no delegates
+			// add more tail call checks if needed here
+			;
+	}
+	if (isTailCall) {
+		// reuse the caller stack frame, and keep the original caller
+		pThis = pCaller;
+		// if the new stack frame size is different, correct for it
+		PTR pOldStackEnd = (PTR)pThread->pThreadStack->memory + pThread->pThreadStack->ofs;
+		PTR pNewStackEnd = (PTR)pCaller + sizeof(tMethodState) + stackFrameSize;
+		I32 ofsDiff = (pNewStackEnd - pOldStackEnd);
+		pThread->pThreadStack->ofs += ofsDiff;
+	} else
+#endif
+	{
+		// make new stack frame
+		pThis = (tMethodState*)Thread_StackAlloc(pThread, sizeof(tMethodState) + stackFrameSize);
+		pThis->pCaller = pCaller;
+
+#ifdef DIAG_CALL_HISTORY
+		pThread->nestedLevel += 1;
+		//for (I32 i = pThread->nestedLevel / 10; i > 0; i--) { printbuf("*"); } // (optional) print call nested level, each '*' is 10 levels
+		//for (I32 i = pThread->nestedLevel % 10; i > 0; i--) { printbuf("|"); } // (optional) print call nested level, each '|' is 1 level
+		printbuf("%d %s.%s\n", pThread->nestedLevel, pMethod->pParentType->name, pMethod->name);
+#endif
+	}
+
+	pThis->pMethod = pMethod;
 	pThis->pJIT = pMethod->pJITted;
 	pThis->ipOffset = 0;
-	pThis->pEvalStack = (PTR)Thread_StackAlloc(pThread, pThis->pMethod->pJITted->maxStack);
 	pThis->stackOfs = 0;
 	pThis->isInternalNewObjCall = isInternalNewObjCall;
+	pThis->finalizerThis = NULL;
 	pThis->pNextDelegate = NULL;
 	pThis->pDelegateParams = NULL;
-
-	pThis->pParamsLocals = (PTR)Thread_StackAlloc(pThread, pMethod->parameterStackSize + pMethod->pJITted->localsStackSize);
-	memset(pThis->pParamsLocals, 0, pMethod->parameterStackSize + pMethod->pJITted->localsStackSize);
+	pThis->pOpEndFinally = NULL;
+	pThis->pReflectionInvokeReturnType = NULL;
 
 #ifdef GEN_COMBINED_OPCODES
 	AddCall(pMethod);
@@ -189,7 +219,7 @@ tMethodState* MethodState_Direct(tThread *pThread, tMD_MethodDef *pMethod, tMeth
 #ifdef DIAG_METHOD_CALLS
 	// Keep track of the number of times this method is called
 	pMethod->callCount++;
-	pThis->startTime = microTime();
+	pMethod->startTime = microTime();
 #endif
 
 	return pThis;
@@ -199,12 +229,15 @@ tMethodState* MethodState(tThread *pThread, tMetaData *pMetaData, IDX_TABLE meth
 	tMD_MethodDef *pMethod;
 
 	pMethod = MetaData_GetMethodDefFromDefRefOrSpec(pMetaData, methodToken, NULL, NULL);
-	return MethodState_Direct(pThread, pMethod, pCaller, 0);
+	return MethodState_Direct(pThread, pMethod, pCaller, 0, 0);
 }
 
 void MethodState_Delete(tThread *pThread, tMethodState **ppMethodState) {
 	tMethodState *pThis = *ppMethodState;
 
+#ifdef DIAG_CALL_HISTORY
+	pThread->nestedLevel -= 1;
+#endif
 
 #ifdef GEN_COMBINED_OPCODES
 	if (pThis->pJIT != pThis->pMethod->pJITted) {
@@ -220,7 +253,9 @@ void MethodState_Delete(tThread *pThread, tMethodState **ppMethodState) {
 #endif
 
 #ifdef DIAG_METHOD_CALLS
-	pThis->pMethod->totalTime += microTime() - pThis->startTime;
+	U64 elapsed = microTime() - pThis->pMethod->startTime;
+	pThis->pMethod->totalTime += elapsed;
+	if (pThis->pMethod->maxTime < elapsed) { pThis->pMethod->maxTime = elapsed; }
 #endif
 
 	// If this MethodState is a Finalizer, then let the heap know this Finalizer has been run
@@ -232,9 +267,9 @@ void MethodState_Delete(tThread *pThread, tMethodState **ppMethodState) {
 		free(pThis->pDelegateParams);
 	}
 
-	// Note that the way the stack free funtion works means that only the 1st allocated chunk
+	// Note that the way the stack free function works means that only the first allocated chunk
 	// needs to be free'd, as this function just sets the current allocation offset to the address given.
-	Thread_StackFree(pThread, pThis);
+	Thread_StackFree(pThread, (PTR)pThis);
 
 	*ppMethodState = NULL;
 }
