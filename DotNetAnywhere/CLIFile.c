@@ -290,31 +290,31 @@ static tCLIFile* LoadPEFile(void *pData) {
 		RVA_Create(pRet->pRVA, pData, pSection);
 	}
 
-	cliHeaderRVA = *(unsigned int*)&(pPEOptionalHeader[208]);
+	cliHeaderRVA = UINT32_FROM_LE(*(unsigned int*)&(pPEOptionalHeader[208]));
 	// cliHeaderSize = *(unsigned int*)&(pPEOptionalHeader[212]);
 
 	pCLIHeader = RVA_FindData(pRet->pRVA, cliHeaderRVA);
 
-	metaDataRVA = *(unsigned int*)&(pCLIHeader[8]);
+	metaDataRVA = UINT32_FROM_LE(*(unsigned int*)&(pCLIHeader[8]));
 	// metaDataSize = *(unsigned int*)&(pCLIHeader[12]);
-	pRet->entryPoint = *(unsigned int*)&(pCLIHeader[20]);
+	pRet->entryPoint = UINT32_FROM_LE(*(unsigned int*)&(pCLIHeader[20]));
 	pRawMetaData = RVA_FindData(pRet->pRVA, metaDataRVA);
 
 	// Load all metadata
 	{
-		unsigned int versionLen = *(unsigned int*)&(pRawMetaData[12]);
+		unsigned int versionLen = UINT32_FROM_LE(*(unsigned int*)&(pRawMetaData[12]));
 		unsigned int ofs, numberOfStreams;
 		void *pTableStream = NULL;
 		unsigned int tableStreamSize;
 		pRet->pVersion = &(pRawMetaData[16]);
 		log_f(1, "CLI version: %s\n", pRet->pVersion);
 		ofs = 16 + versionLen;
-		numberOfStreams = *(unsigned short*)&(pRawMetaData[ofs + 2]);
+		numberOfStreams = UINT16_FROM_LE(*(unsigned short*)&(pRawMetaData[ofs + 2]));
 		ofs += 4;
 
 		for (i=0; i<(signed)numberOfStreams; i++) {
-			unsigned int streamOffset = *(unsigned int*)&pRawMetaData[ofs];
-			unsigned int streamSize = *(unsigned int*)&pRawMetaData[ofs+4];
+			unsigned int streamOffset = UINT32_FROM_LE(*(unsigned int*)&pRawMetaData[ofs]);
+			unsigned int streamSize = UINT32_FROM_LE(*(unsigned int*)&pRawMetaData[ofs+4]);
 			char *pStreamName = (char*)&pRawMetaData[ofs+8];
 			void *pStream = pRawMetaData + streamOffset;
 			ofs += (unsigned int)((strlen(pStreamName)+4) & (~0x3)) + 8;
@@ -342,8 +342,7 @@ static tCLIFile* LoadPEFile(void *pData) {
 		tMD_GenericParam *pGenericParam;
 		IDX_TABLE ownerIdx;
 
-		pGenericParam = (tMD_GenericParam*)MetaData_GetTableRow
-			(pMetaData, MAKE_TABLE_INDEX(MD_TABLE_GENERICPARAM, i));
+		pGenericParam = (tMD_GenericParam*)MetaData_GetTableRow(pMetaData, MAKE_TABLE_INDEX(MD_TABLE_GENERICPARAM, i));
 		ownerIdx = pGenericParam->owner;
 		switch (TABLE_ID(ownerIdx)) {
 			case MD_TABLE_TYPEDEF:

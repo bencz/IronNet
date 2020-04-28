@@ -21,6 +21,7 @@
 
 #include "Compat.h"
 #include "Sys.h"
+#include "Endian.h"
 
 #include "RVA.h"
 
@@ -36,15 +37,15 @@ tRVA_Item* RVA_Create(tRVA *pThis, void *pFile, void *pSectionHeader) {
 	unsigned int rawSize;
 
 	pRet = TMALLOCFOREVER(1, tRVA_Item);
-	pRet->baseAddress = *(unsigned int*)&((char*)pSectionHeader)[12];
-	pRet->size = *(unsigned int*)&((char*)pSectionHeader)[8];
+	pRet->baseAddress = UINT32_FROM_LE(*(unsigned int*)&((char*)pSectionHeader)[12]);
+	pRet->size = UINT32_FROM_LE(*(unsigned int*)&((char*)pSectionHeader)[8]);
 	pRet->pData = callocForever(1, pRet->size);
 	//memset(pRet->pData, 0, pRet->size);
 	pRet->pNext = pThis->pFirstRVA;
 	pThis->pFirstRVA = pRet;
 
-	rawOfs = *(unsigned int*)&((char*)pSectionHeader)[20];
-	rawSize = *(unsigned int*)&((char*)pSectionHeader)[16];
+	rawOfs = UINT32_FROM_LE(*(unsigned int*)&((char*)pSectionHeader)[20]);
+	rawSize = UINT32_FROM_LE(*(unsigned int*)&((char*)pSectionHeader)[16]);
 	if (rawOfs > 0) {
 		if (rawSize > pRet->size) {
 			rawSize = pRet->size;

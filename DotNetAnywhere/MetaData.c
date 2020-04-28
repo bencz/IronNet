@@ -20,6 +20,7 @@
 
 #include "Compat.h"
 #include "Sys.h"
+#include "Endian.h"
 
 #include "MetaData.h"
 
@@ -604,13 +605,13 @@ void MetaData_LoadTables(tMetaData *pThis, tRVA *pRVA, void *pStream, unsigned i
 	pThis->index32BitGUID = (c & 2) > 0;
 	pThis->index32BitBlob = (c & 4) > 0;
 
-	valid = *(U64*)&((char*)pStream)[8];
+	valid = UINT64_FROM_LE(*(U64*)&((char*)pStream)[8]);
 
 	// Count how many tables there are, and read in all the number of rows of each table.
 	numTables = 0;
 	for (i=0, j=1; i<MAX_TABLES; i++, j <<= 1) {
 		if (valid & j) {
-			pThis->tables.numRows[i] = *(unsigned int*)&((char*)pStream)[24 + numTables * 4];
+			pThis->tables.numRows[i] = UINT32_FROM_LE(*(unsigned int*)&((char*)pStream)[24 + numTables * 4]);
 			numTables++;
 		} else {
 			pThis->tables.numRows[i] = 0;

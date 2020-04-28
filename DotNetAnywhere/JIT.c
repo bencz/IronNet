@@ -20,6 +20,7 @@
 
 #include "Compat.h"
 #include "Sys.h"
+#include "Endian.h"
 
 #include "JIT.h"
 
@@ -1867,10 +1868,10 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 		pCIL = pMethodHeader + 1;
 	} else {
 		// Fat header
-		flags = *(U16*)pMethodHeader & 0x0fff;
-		pJITted->maxStack = *(U16*)&pMethodHeader[2];
-		codeSize = *(U32*)&pMethodHeader[4];
-		localsToken = *(IDX_TABLE*)&pMethodHeader[8];
+		flags = UINT16_FROM_LE(*(U16*)pMethodHeader) & 0x0fff;
+		pJITted->maxStack = UINT16_FROM_LE(*(U16*)&pMethodHeader[2]);
+		codeSize = UINT32_FROM_LE(*(U32*)&pMethodHeader[4]);
+		localsToken = UINT32_FROM_LE(*(IDX_TABLE*)&pMethodHeader[8]);
 		pCIL = pMethodHeader + ((pMethodHeader[1] & 0xf0) >> 2);
 	}
 	if (flags & CorILMethod_MoreSects) {
@@ -1898,12 +1899,12 @@ void JIT_Prepare(tMD_MethodDef *pMethodDef, U32 genCombinedOpcodes) {
 			pExHeaders = pJITted->pExceptionHeaders =
 				(tExceptionHeader*)(genCombinedOpcodes ? malloc(exSize) : mallocForever(exSize));
 			for (U32 i=0; i<numClauses; i++) {
-				pExHeaders[i].flags = ((U16*)pMethodHeader)[0];
-				pExHeaders[i].tryStart = ((U16*)pMethodHeader)[1];
+				pExHeaders[i].flags = UINT16_FROM_LE(((U16*)pMethodHeader)[0]);
+				pExHeaders[i].tryStart = UINT16_FROM_LE(((U16*)pMethodHeader)[1]);
 				pExHeaders[i].tryEnd = ((U8*)pMethodHeader)[4];
 				pExHeaders[i].handlerStart = ((U8*)pMethodHeader)[5] | (((U8*)pMethodHeader)[6] << 8);
 				pExHeaders[i].handlerEnd = ((U8*)pMethodHeader)[7];
-				pExHeaders[i].u.classToken = ((U32*)pMethodHeader)[2];
+				pExHeaders[i].u.classToken = UINT32_FROM_LE(((U32*)pMethodHeader)[2]);
 
 				pMethodHeader += 12;
 			}
