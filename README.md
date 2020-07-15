@@ -7,8 +7,7 @@ IronNet is currently compiled and tested on the following systems:
 - Linux Debian powerpc and powerpc64 (big endian)
 - Linux Debian ppc64le
 - Linux Debian m68k
-- Linux Debian sparc
-- Linux Debian sparc64
+- Linux Debian sparc and sparc64
 - IBM s/390 ( ISPF and OMVS )
 - IBM z/OS ( ISPF and OMVS )
 - IBM i ( ILE and PASE )
