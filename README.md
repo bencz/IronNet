@@ -10,8 +10,8 @@ IronNet is currently compiled and tested on the following systems:
 - Linux Debian sparc and sparc64
 - IBM s/390 ( ISPF and OMVS )
 - IBM z/OS ( ISPF and OMVS )
-- IBM i (v6r1 to v7r4 ) ( ILE and PASE )
-- IBM AS/400 ( v5r3 to v5r4 ) ( ILE and PASE )
+- IBM i (v5r4 to v7r4 ) ( ILE and PASE )
+- IBM AS/400 ( v5r3 ) ( ILE and PASE )
 
 .Net assemblie descompilation test on IBM i ILE
 ![](https://user-images.githubusercontent.com/1174448/85805689-64bbf780-b723-11ea-9ea0-fac184a8e10c.png)
