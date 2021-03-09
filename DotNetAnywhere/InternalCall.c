@@ -51,8 +51,6 @@
 #include "Delegate.h"
 #include "Reflection.h"
 
-#include "JSInterop.h"
-
 #define MAX_PARAMS 6
 
 typedef struct tInternalCall_ tInternalCall;
@@ -101,8 +99,6 @@ static tInternalCall internalCalls[] = {
 	{NULL, NULL,     "InternalToDouble", System_String_InternalToDouble, TYPE_SYSTEM_DOUBLE, 1, {TYPE_SYSTEM_INTPTR}},
 	{NULL, NULL,     "ToLowerInvariant", System_String_ToLowerInvariant, TYPE_SYSTEM_STRING, 0, {0}},
 	{NULL, NULL,     "ToUpperInvariant", System_String_ToUpperInvariant, TYPE_SYSTEM_STRING, 0, {0}},
-
-	{NULL, "Activator", "CreateInstance", Framework_JSInterop_Activator_CreateInstance, TYPE_SYSTEM_OBJECT, 1, {TYPE_SYSTEM_TYPE}},
 
 	{NULL, "Array", "Internal_GetValue", System_Array_Internal_GetValue, TYPE_SYSTEM_OBJECT, 1, {TYPE_SYSTEM_INT32}},
 	{NULL, NULL,    "Internal_SetValue", System_Array_Internal_SetValue, TYPE_SYSTEM_BOOLEAN, 2, {TYPE_SYSTEM_OBJECT, TYPE_SYSTEM_INT32}},
@@ -218,9 +214,6 @@ static tInternalCall internalCalls[] = {
 	{NULL,                 NULL,     "Internal_Connect", System_Net_Sockets_Internal_Connect, TYPE_SYSTEM_VOID, 4, {TYPE_SYSTEM_INTPTR, TYPE_SYSTEM_UINT32, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INTPTR}},
 	{NULL,                 NULL,     "Internal_Receive", System_Net_Sockets_Internal_Receive, TYPE_SYSTEM_INT32, 6, {TYPE_SYSTEM_INTPTR, TYPE_SYSTEM_ARRAY_BYTE, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INTPTR}},
 	{NULL,                 NULL,     "Internal_Send", System_Net_Sockets_Internal_Send, TYPE_SYSTEM_INT32, 6, {TYPE_SYSTEM_INTPTR, TYPE_SYSTEM_ARRAY_BYTE, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INT32, TYPE_SYSTEM_INTPTR}},
-
-	{"System.Runtime.InteropServices", "GCHandle", "ToHeapRef", Framework_JSInterop_ToHeapRef, TYPE_SYSTEM_INT32, 1, {TYPE_SYSTEM_OBJECT}},
-	{NULL,                             NULL,       "FromHeapRef", Framework_JSInterop_FromHeapRefImpl, TYPE_SYSTEM_OBJECT, 1, {TYPE_SYSTEM_INT32}},
 
 	{NULL, NULL, NULL, NULL, 0, 0, {0}}
 };

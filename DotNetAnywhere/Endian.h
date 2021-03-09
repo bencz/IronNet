@@ -7,7 +7,9 @@
 
 
 #if _WIN32 || _WIN64
-#define BIGENDIAN 0
+    #ifndef BIGENDIAN
+        #define BIGENDIAN 0
+    #endif
 #else
 #   include <endian.h>
 #   if __BYTE_ORDER == __BIG_ENDIAN

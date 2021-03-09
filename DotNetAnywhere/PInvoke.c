@@ -89,9 +89,6 @@ static tLoadedLib* GetLib(STRING name) {
 }
 
 fnPInvoke PInvoke_GetFunction(tMetaData *pMetaData, tMD_ImplMap *pImplMap) {
-#ifdef JS_INTEROP
-	return (fnPInvoke)invokeJsFunc;
-#else
 	tLoadedLib *pLib;
 	STRING libName;
 	void *pProc;
@@ -109,7 +106,6 @@ fnPInvoke PInvoke_GetFunction(tMetaData *pMetaData, tMD_ImplMap *pImplMap) {
 	pProc = dlsym(pLib, pImplMap->importName);
 #endif
 	return pProc;
-#endif
 }
 
 static void* ConvertStringToANSI(HEAP_PTR pHeapEntry) {

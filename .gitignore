@@ -215,5 +215,5 @@ GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
 
-# Geral
-Source/WebFysco/WebFysco/Empresas/
+.idea
+cmake-build-*

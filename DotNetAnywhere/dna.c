@@ -30,7 +30,6 @@
 #include "Finalizer.h"
 #include "System.Net.Sockets.Socket.h"
 #include "MethodState.h"
-#include "JSInterop.h"
 
 #ifdef DIAG_TOTAL_TIME
 U64 startTime;
