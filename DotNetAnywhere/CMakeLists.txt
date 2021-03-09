@@ -8,8 +8,14 @@ file(GLOB SOURCES
         *.c
         )
 
-set(CMAKE_C_FLAGS "/D_UNICODE /DUNICODE")
+IF(UNIX)
+    set(CMAKE_C_FLAGS "-m32")
+ELSE(WIN32)
+    set(CMAKE_C_FLAGS "/D_UNICODE /DUNICODE")
+ENDIF()
+
 add_executable(Dna ${SOURCES})
+
 IF(UNIX)
     target_link_libraries(Dna m dl pthread)
 ELSE(WIN32)
