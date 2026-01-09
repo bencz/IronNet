@@ -217,3 +217,12 @@ ModelManifest.xml
 
 .idea
 cmake-build-*
+
+.DS_Store
+bin/
+obj/
+build/
+lib/
+
+README.md
+docs/
