@@ -14,6 +14,12 @@ namespace System
         public static extern void Write(string value);
 
         /// <summary>
+        /// Writes the text representation of the specified 32-bit signed integer value
+        /// </summary>
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern void Write(int value);
+
+        /// <summary>
         /// Writes the current line terminator to the standard output stream
         /// </summary>
         public static void WriteLine()

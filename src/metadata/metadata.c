@@ -726,6 +726,23 @@ iron_result_t iron_metadata_read_row(const iron_metadata_t *meta,
             row->signature = read_index(&ptr, blob_size);
             break;
         }
+        case IRON_TABLE_STANDALONE_SIG: {
+            iron_standalone_sig_row_t *row = (iron_standalone_sig_row_t *)out_row;
+            row->signature = read_index(&ptr, blob_size);
+            break;
+        }
+        case IRON_TABLE_TYPE_SPEC: {
+            iron_type_spec_row_t *row = (iron_type_spec_row_t *)out_row;
+            row->signature = read_index(&ptr, blob_size);
+            break;
+        }
+        case IRON_TABLE_METHOD_SPEC: {
+            iron_method_spec_row_t *row = (iron_method_spec_row_t *)out_row;
+            row->method = read_index(&ptr, 
+                meta->coded_index_sizes[IRON_CODED_METHOD_DEF_OR_REF]);
+            row->instantiation = read_index(&ptr, blob_size);
+            break;
+        }
         default:
             return IRON_ERROR(IRON_ERR_NOT_IMPLEMENTED, "Table not implemented");
     }

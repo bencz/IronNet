@@ -3,6 +3,12 @@
  * thread.c - Platform-independent threading implementation
  */
 
+/* Enable POSIX features */
+#if !defined(_WIN32) && !defined(_WIN64)
+    #define _POSIX_C_SOURCE 200809L
+    #define _XOPEN_SOURCE 700
+#endif
+
 #include "iron/thread.h"
 #include <string.h>
 #include <stdlib.h>

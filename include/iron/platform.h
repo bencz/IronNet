@@ -14,6 +14,16 @@
 #ifndef IRON_PLATFORM_H
 #define IRON_PLATFORM_H
 
+/* Enable POSIX features before any system includes */
+#if !defined(_WIN32) && !defined(_WIN64)
+    #ifndef _POSIX_C_SOURCE
+        #define _POSIX_C_SOURCE 200809L
+    #endif
+    #ifndef _XOPEN_SOURCE
+        #define _XOPEN_SOURCE 700
+    #endif
+#endif
+
 /* ============================================================================
  * C89 Compatibility - No stdint.h, define our own types
  * ============================================================================ */

@@ -309,6 +309,8 @@ IRON_API iron_runtime_type_t *iron_type_make_generic(iron_domain_t *domain,
 IRON_API iron_result_t iron_type_compute_layout(iron_runtime_type_t *type);
 IRON_API iron_result_t iron_type_init_static(iron_runtime_type_t *type,
                                               struct iron_exec_context *ctx);
+IRON_API iron_runtime_method_t *iron_type_find_method(iron_runtime_type_t *type,
+                                                       const char *name);
 
 /* ============================================================================
  * Runtime Method

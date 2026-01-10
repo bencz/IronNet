@@ -12,10 +12,7 @@ LIBDIR = lib
 BINDIR = bin
 
 # Compiler flags
-CFLAGS = -Wall -Wextra -std=c89 -I$(INCDIR)
-CFLAGS += -D_POSIX_C_SOURCE=200809L
-# Allow long long for 64-bit support (unavoidable in C89)
-CFLAGS += -Wno-long-long
+CFLAGS = -Wall -Wextra -std=c99 -Werror -I$(INCDIR)
 
 # Debug/Release
 ifdef DEBUG
@@ -37,7 +34,8 @@ endif
 CORE_SRCS = \
     $(SRCDIR)/core/platform.c \
     $(SRCDIR)/core/memory.c \
-    $(SRCDIR)/core/types.c
+    $(SRCDIR)/core/types.c \
+    $(SRCDIR)/core/debug.c
 
 PE_SRCS = \
     $(SRCDIR)/pe/pe.c
@@ -47,6 +45,7 @@ METADATA_SRCS = \
 
 RUNTIME_SRCS = \
     $(SRCDIR)/runtime/opcodes.c \
+    $(SRCDIR)/runtime/opcode_table.c \
     $(SRCDIR)/runtime/exec.c \
     $(SRCDIR)/runtime/runtime.c
 
@@ -57,12 +56,22 @@ GC_SRCS = \
     $(SRCDIR)/gc/gc.c
 
 CORLIB_SRCS = \
-    $(SRCDIR)/corlib/corlib.c
+    $(SRCDIR)/corlib/string.c \
+    $(SRCDIR)/corlib/object.c \
+    $(SRCDIR)/corlib/console.c \
+    $(SRCDIR)/corlib/math.c \
+    $(SRCDIR)/corlib/int32.c \
+    $(SRCDIR)/corlib/environment.c \
+    $(SRCDIR)/corlib/array.c \
+    $(SRCDIR)/corlib/corlib_main.c
+
+DISASM_SRCS = \
+    $(SRCDIR)/disasm/disasm.c
 
 MAIN_SRCS = \
     $(SRCDIR)/iron.c
 
-ALL_SRCS = $(CORE_SRCS) $(PE_SRCS) $(METADATA_SRCS) $(RUNTIME_SRCS) $(THREAD_SRCS) $(GC_SRCS) $(CORLIB_SRCS) $(MAIN_SRCS)
+ALL_SRCS = $(CORE_SRCS) $(PE_SRCS) $(METADATA_SRCS) $(RUNTIME_SRCS) $(THREAD_SRCS) $(GC_SRCS) $(CORLIB_SRCS) $(DISASM_SRCS) $(MAIN_SRCS)
 
 # Object files
 OBJS = $(ALL_SRCS:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
@@ -92,6 +101,7 @@ dirs:
 	@mkdir -p $(BUILDDIR)/thread
 	@mkdir -p $(BUILDDIR)/gc
 	@mkdir -p $(BUILDDIR)/corlib
+	@mkdir -p $(BUILDDIR)/disasm
 	@mkdir -p $(LIBDIR)
 	@mkdir -p $(BINDIR)
 
@@ -124,7 +134,7 @@ corlib: $(MAIN_EXE)
 # Build examples
 examples: corlib
 	@echo "=== Building examples ==="
-	$(MAKE) -C examples/HelloWorld
+	$(MAKE) -C examples
 
 # Full build including corlib and examples
 full: all corlib examples
@@ -134,7 +144,7 @@ full: all corlib examples
 clean:
 	rm -rf $(BUILDDIR) $(LIBDIR) $(BINDIR)
 	$(MAKE) -C corlib clean || true
-	$(MAKE) -C examples/HelloWorld clean || true
+	$(MAKE) -C examples clean || true
 
 # Install (to /usr/local by default)
 PREFIX ?= /usr/local

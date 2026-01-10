@@ -241,7 +241,7 @@ iron_result_t iron_pe_load(iron_pe_image_t *image, const iron_u8 *data,
     iron_u32 offset;
     iron_u16 magic;
     iron_u16 i;
-    iron_section_header_t section_hdr;
+    iron_section_header_t section_hdr = {0};
     const iron_data_directory_t *cli_dir;
     iron_u32 cli_offset;
     

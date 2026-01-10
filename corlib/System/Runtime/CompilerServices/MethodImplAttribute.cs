@@ -1,6 +1,15 @@
 namespace System.Runtime.CompilerServices
 {
     /// <summary>
+    /// Indicates that a method is an extension method
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Assembly)]
+    public sealed class ExtensionAttribute : Attribute
+    {
+        public ExtensionAttribute() { }
+    }
+    
+    /// <summary>
     /// Specifies the details of how a method is implemented
     /// </summary>
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, Inherited = false)]

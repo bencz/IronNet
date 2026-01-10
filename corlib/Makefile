@@ -1,10 +1,11 @@
 # IronNet Corlib Build
 # Compiles the C# BCL implementation to corlib.dll
 
-# Find the SDK path dynamically
-SDK_VERSION := $(shell dotnet --version)
-SDK_PATH := /usr/local/share/dotnet/sdk/$(SDK_VERSION)
-CSC := dotnet $(SDK_PATH)/Roslyn/bincore/csc.dll
+# Find dotnet SDK path
+SDK_VERSION := $(shell dotnet --version 2>/dev/null)
+SDK_PATH := $(shell dotnet --list-sdks | grep "$(SDK_VERSION)" | sed 's/.*\[\(.*\)\]/\1/')
+CSC := dotnet $(SDK_PATH)/$(SDK_VERSION)/Roslyn/bincore/csc.dll
+CSCFLAGS := -nostdlib -noconfig -target:library -langversion:latest -nullable:disable -unsafe+ -warn:0
 
 # Directories
 BUILD_DIR := ../bin
@@ -27,7 +28,7 @@ $(BUILD_DIR):
 
 $(OUTPUT): $(SOURCES)
 	@echo "=== Building corlib ==="
-	@echo "SDK: $(SDK_PATH)"
+	@echo "CSC: $(CSC)"
 	@echo "Sources: $(words $(SOURCES)) files"
 	$(CSC) -nostdlib -noconfig \
 		-target:library \

@@ -289,9 +289,3 @@ iron_bool iron_opcode_is_prefix(iron_opcode_t opcode)
     }
 }
 
-const iron_opcode_info_t *iron_opcode_info(iron_opcode_t opcode)
-{
-    /* Simplified - return NULL for now, full table would be too large */
-    (void)opcode;
-    return NULL;
-}

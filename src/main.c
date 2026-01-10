@@ -7,6 +7,7 @@
 
 #include "iron/iron.h"
 #include "iron/corlib.h"
+#include "iron/disasm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,18 +31,23 @@ static void print_usage(const char *program)
 {
     printf("Usage: %s [options] <assembly.exe> [args...]\n\n", program);
     printf("Options:\n");
-    printf("  -h, --help          Show this help message\n");
-    printf("  -v, --version       Show version information\n");
-    printf("  -L <path>           Add assembly search path\n");
-    printf("  --corlib <path>     Path to corlib.dll (default: ./corlib/corlib.dll)\n");
-    printf("  --debug             Enable debug output\n");
-    printf("  --trace             Trace IL execution\n");
-    printf("  --gc-threshold <n>  Set GC threshold in bytes\n");
+    printf("  -h, --help              Show this help message\n");
+    printf("  -v, --version           Show version information\n");
+    printf("  -L <path>               Add assembly search path\n");
+    printf("  --corlib <path>         Path to corlib.dll (default: ./corlib/corlib.dll)\n");
+    printf("  --debug                 Enable debug output (level: INFO)\n");
+    printf("  --debug-level <level>   Set debug level (trace,debug,info,warn,error,fatal)\n");
+    printf("  --debug-components <c>  Enable specific components (comma-separated)\n");
+    printf("                          Components: core,gc,exec,metadata,pe,thread,corlib,all\n");
+    printf("  --no-color              Disable colored output\n");
+    printf("  --trace                 Trace IL execution (shortcut for --debug-level trace)\n");
+    printf("  --gc-threshold <n>      Set GC threshold in bytes\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s HelloWorld.exe\n", program);
     printf("  %s -L ./libs MyApp.exe arg1 arg2\n", program);
-    printf("  %s --corlib /path/to/corlib.dll Program.exe\n", program);
+    printf("  %s --debug Program.exe\n", program);
+    printf("  %s --debug-level trace --debug-components exec,gc Program.exe\n", program);
 }
 
 /* ============================================================================
@@ -58,6 +64,10 @@ typedef struct ironnet_config {
     int assembly_argc;
     iron_bool debug_mode;
     iron_bool trace_mode;
+    iron_bool disasm_mode;
+    iron_log_level_t debug_level;
+    iron_u32 debug_components;
+    iron_bool no_color;
     iron_size gc_threshold;
 } ironnet_config_t;
 
@@ -66,6 +76,8 @@ static void config_init(ironnet_config_t *config)
     memset(config, 0, sizeof(*config));
     config->corlib_path = "corlib/corlib.dll";
     config->gc_threshold = 1024 * 1024; /* 1MB default */
+    config->debug_level = IRON_LOG_INFO;
+    config->debug_components = IRON_LOG_COMP_ALL;
 }
 
 static void config_add_search_path(ironnet_config_t *config, const char *path)
@@ -123,8 +135,32 @@ static int parse_args(int argc, char **argv, ironnet_config_t *config)
         else if (strcmp(argv[i], "--debug") == 0) {
             config->debug_mode = IRON_TRUE;
         }
+        else if (strcmp(argv[i], "--debug-level") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --debug-level requires a level argument\n");
+                return 1;
+            }
+            config->debug_mode = IRON_TRUE;
+            config->debug_level = iron_debug_parse_level(argv[++i]);
+        }
+        else if (strcmp(argv[i], "--debug-components") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --debug-components requires a component list\n");
+                return 1;
+            }
+            config->debug_mode = IRON_TRUE;
+            config->debug_components = iron_debug_parse_components(argv[++i]);
+        }
+        else if (strcmp(argv[i], "--no-color") == 0) {
+            config->no_color = IRON_TRUE;
+        }
         else if (strcmp(argv[i], "--trace") == 0) {
+            config->debug_mode = IRON_TRUE;
             config->trace_mode = IRON_TRUE;
+            config->debug_level = IRON_LOG_TRACE;
+        }
+        else if (strcmp(argv[i], "--disasm") == 0) {
+            config->disasm_mode = IRON_TRUE;
         }
         else if (strcmp(argv[i], "--gc-threshold") == 0) {
             if (i + 1 >= argc) {
@@ -184,9 +220,9 @@ static void on_exception(iron_exec_context_t *ctx, iron_exception_t *ex)
 {
     (void)ctx;
     if (ex) {
-        printf("[EXCEPTION] %s: %s\n",
+        printf("[EXCEPTION] %s: %p\n",
                ex->type ? ex->type->name : "Exception",
-               ex->message ? ex->message : "(no message)");
+               ex->message);
     }
 }
 
@@ -215,6 +251,20 @@ int main(int argc, char **argv)
         return i < 0 ? 0 : i;
     }
     
+    /* Initialize debug system */
+    iron_debug_init();
+    if (config.debug_mode) {
+        iron_debug_enable(IRON_TRUE);
+        iron_debug_set_level(config.debug_level);
+        iron_debug_set_components(config.debug_components);
+        if (config.no_color) {
+            iron_debug_config_t dbg_cfg;
+            iron_debug_get_config(&dbg_cfg);
+            dbg_cfg.colorize = IRON_FALSE;
+            iron_debug_set_config(&dbg_cfg);
+        }
+    }
+    
     /* Initialize runtime */
     result = iron_init();
     if (!IRON_RESULT_OK(result)) {
@@ -223,11 +273,10 @@ int main(int argc, char **argv)
         return 1;
     }
     
-    if (config.debug_mode) {
-        printf("[DEBUG] IronNet initialized\n");
-        printf("[DEBUG] Assembly: %s\n", config.assembly_path);
-        printf("[DEBUG] Corlib: %s\n", config.corlib_path);
-    }
+    IRON_INFO_CORE("IronNet initialized");
+    IRON_INFO_CORE("Assembly: %s", config.assembly_path);
+    IRON_INFO_CORE("Corlib: %s", config.corlib_path);
+    IRON_DEBUG_CORE("Debug level: %s", iron_debug_level_name(config.debug_level));
     
     /* Create domain */
     memset(&domain_config, 0, sizeof(domain_config));
@@ -243,15 +292,13 @@ int main(int argc, char **argv)
     /* Add search paths */
     for (i = 0; i < config.search_path_count; i++) {
         iron_domain_add_search_path(domain, config.search_paths[i]);
-        if (config.debug_mode) {
-            printf("[DEBUG] Added search path: %s\n", config.search_paths[i]);
-        }
+        IRON_DEBUG_CORE("Added search path: %s", config.search_paths[i]);
     }
     
     /* Create execution context */
     result = iron_exec_create(&ctx, domain);
     if (!IRON_RESULT_OK(result)) {
-        fprintf(stderr, "Error: Failed to create execution context: %s\n", result.message);
+        IRON_ERROR_CORE("Failed to create execution context: %s", result.message);
         goto cleanup;
     }
     
@@ -265,80 +312,74 @@ int main(int argc, char **argv)
     /* Register internal calls */
     result = iron_register_corlib(ctx);
     if (!IRON_RESULT_OK(result)) {
-        fprintf(stderr, "Error: Failed to register corlib: %s\n", result.message);
+        IRON_ERROR_CORLIB("Failed to register corlib: %s", result.message);
         goto cleanup;
     }
+    IRON_DEBUG_CORLIB("Internal calls registered");
     
     /* Load corlib */
-    if (config.debug_mode) {
-        printf("[DEBUG] Loading corlib from: %s\n", config.corlib_path);
-    }
+    IRON_INFO_CORE("Loading corlib from: %s", config.corlib_path);
     
     result = iron_domain_load_assembly(domain, config.corlib_path, &corlib);
     if (!IRON_RESULT_OK(result)) {
-        fprintf(stderr, "Warning: Failed to load corlib from '%s': %s\n", 
-                config.corlib_path, result.message);
-        fprintf(stderr, "         Continuing without corlib (internal calls only)\n");
-        /* Continue anyway - we have internal call implementations */
+        IRON_WARN_CORE("Failed to load corlib from '%s': %s", config.corlib_path, result.message);
+        IRON_WARN_CORE("Continuing without corlib (internal calls only)");
     } else {
-        if (config.debug_mode) {
-            printf("[DEBUG] Corlib loaded successfully\n");
-        }
+        IRON_INFO_CORE("Corlib loaded successfully");
     }
     
     /* Load main assembly */
-    if (config.debug_mode) {
-        printf("[DEBUG] Loading assembly: %s\n", config.assembly_path);
-    }
+    IRON_INFO_CORE("Loading assembly: %s", config.assembly_path);
     
     result = iron_domain_load_assembly(domain, config.assembly_path, &main_assembly);
     if (!IRON_RESULT_OK(result)) {
-        fprintf(stderr, "Error: Failed to load assembly '%s': %s\n", 
-                config.assembly_path, result.message);
+        IRON_ERROR_CORE("Failed to load assembly '%s': %s", config.assembly_path, result.message);
         exit_code = 1;
         goto cleanup;
     }
+    IRON_INFO_CORE("Assembly loaded successfully");
     
-    if (config.debug_mode) {
-        printf("[DEBUG] Assembly loaded successfully\n");
+    /* Disassemble if requested */
+    if (config.disasm_mode) {
+        if (corlib) {
+            printf("\n*** CORLIB ***\n");
+            iron_disasm_assembly(corlib);
+        }
+        printf("\n*** MAIN ASSEMBLY ***\n");
+        iron_disasm_assembly(main_assembly);
     }
     
     /* Find entry point */
     entry_point = iron_assembly_get_entry_point(main_assembly);
     if (!entry_point) {
-        fprintf(stderr, "Error: Assembly has no entry point\n");
+        IRON_ERROR_CORE("Assembly has no entry point");
         exit_code = 1;
         goto cleanup;
     }
     
-    if (config.debug_mode) {
-        printf("[DEBUG] Entry point: %s.%s\n",
-               entry_point->declaring_type ? entry_point->declaring_type->name : "?",
-               entry_point->name ? entry_point->name : "Main");
-    }
+    IRON_INFO_EXEC("Entry point: %s.%s",
+           entry_point->declaring_type ? entry_point->declaring_type->name : "?",
+           entry_point->name ? entry_point->name : "Main");
     
     /* Execute */
-    if (config.debug_mode) {
-        printf("[DEBUG] Starting execution...\n");
-        printf("========================================\n");
-    }
+    IRON_INFO_EXEC("Starting execution...");
+    IRON_INFO_EXEC("========================================");
     
     result = iron_exec_entry_point(ctx, entry_point, 
                                    config.assembly_args, config.assembly_argc,
                                    &exit_code);
     
-    if (config.debug_mode) {
-        printf("========================================\n");
-    }
+    IRON_INFO_EXEC("========================================");
     
     if (!IRON_RESULT_OK(result)) {
-        fprintf(stderr, "Error: Execution failed: %s\n", result.message);
+        IRON_ERROR_EXEC("Execution failed: %s", result.message);
         exit_code = 1;
-    } else if (config.debug_mode) {
-        printf("[DEBUG] Execution completed with exit code: %d\n", exit_code);
+    } else {
+        IRON_INFO_EXEC("Execution completed with exit code: %d", exit_code);
     }
     
 cleanup:
+    IRON_DEBUG_CORE("Cleaning up...");
     if (ctx) {
         iron_exec_destroy(ctx);
     }
@@ -346,6 +387,7 @@ cleanup:
         iron_domain_destroy(domain);
     }
     iron_shutdown();
+    iron_debug_shutdown();
     config_cleanup(&config);
     
     return exit_code;

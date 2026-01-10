@@ -20,6 +20,7 @@
 #include "vtable.h"
 #include "runtime.h"
 #include "opcodes.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -210,14 +211,6 @@ IRON_API void iron_thread_ctx_abort(iron_thread_context_t *thread);
  * Execution Context
  * ============================================================================ */
 
-/* GC state */
-typedef struct iron_gc_state {
-    iron_gc_header_t *all_objects;
-    iron_size total_allocated;
-    iron_size threshold;
-    iron_bool collection_in_progress;
-} iron_gc_state_t;
-
 /* Execution context - global interpreter state */
 struct iron_exec_context {
     iron_object_t base;
@@ -239,8 +232,8 @@ struct iron_exec_context {
     /* Internal call table */
     iron_hashmap_t internal_calls;
     
-    /* GC state */
-    iron_gc_state_t gc;
+    /* GC - uses iron_gc_t from gc.h */
+    iron_gc_t gc;
     
     /* Synchronization primitives pool */
     void *sync_pool;

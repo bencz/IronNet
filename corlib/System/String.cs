@@ -170,6 +170,26 @@ namespace System
         /// </summary>
         [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern bool Equals(string a, string b);
+        
+        /// <summary>
+        /// Determines whether two specified strings have the same value
+        /// </summary>
+        public static bool operator ==(string a, string b)
+        {
+            if ((object)a == null)
+                return (object)b == null;
+            if ((object)b == null)
+                return false;
+            return Equals(a, b);
+        }
+        
+        /// <summary>
+        /// Determines whether two specified strings have different values
+        /// </summary>
+        public static bool operator !=(string a, string b)
+        {
+            return !(a == b);
+        }
 
         /// <summary>
         /// Determines whether this instance and a specified object have the same value

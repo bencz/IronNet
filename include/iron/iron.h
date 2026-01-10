@@ -34,6 +34,7 @@
 #include "runtime.h"
 #include "exec.h"
 #include "gc.h"
+#include "debug.h"
 
 #ifdef __cplusplus
 extern "C" {
