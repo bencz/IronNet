@@ -7,6 +7,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(IRON_OS_POSIX)
+#include <unistd.h>
+#endif
+
 /* ============================================================================
  * Runtime Endianness Detection
  * ============================================================================ */
@@ -234,7 +238,6 @@ static void init_platform_info(void)
     /* Will be set in Windows-specific code */
     g_platform_info.page_size = 4096;
 #elif defined(IRON_OS_POSIX)
-    #include <unistd.h>
     {
         long page_size = sysconf(_SC_PAGESIZE);
         if (page_size > 0) {

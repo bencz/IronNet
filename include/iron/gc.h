@@ -15,16 +15,13 @@
 
 #include "platform.h"
 #include "types.h"
+#include "forward.h"
 #include "memory.h"
 #include "vtable.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Forward declarations */
-typedef struct iron_exec_context iron_exec_context_t;
-typedef struct iron_runtime_type iron_runtime_type_t;
 
 /* ============================================================================
  * GC Configuration

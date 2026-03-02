@@ -10,6 +10,7 @@
 
 #include "platform.h"
 #include "types.h"
+#include "forward.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,8 +19,6 @@ extern "C" {
 /* ============================================================================
  * Allocator Interface (vtable-based polymorphism)
  * ============================================================================ */
-
-typedef struct iron_allocator iron_allocator_t;
 
 /* Allocator vtable */
 typedef struct iron_allocator_vtable {
@@ -200,12 +199,12 @@ IRON_API void iron_array_free_(void *array, iron_size elem_size);
  * String Builder
  * ============================================================================ */
 
-typedef struct iron_string_builder {
+struct iron_string_builder {
     iron_allocator_t *allocator;
     char *data;
     iron_size length;
     iron_size capacity;
-} iron_string_builder_t;
+};
 
 IRON_API void iron_sb_init(iron_string_builder_t *sb, iron_allocator_t *alloc,
                             iron_size initial_capacity);

@@ -16,6 +16,7 @@
 
 #include "platform.h"
 #include "types.h"
+#include "forward.h"
 #include "memory.h"
 #include "vtable.h"
 #include "runtime.h"
@@ -25,12 +26,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Forward declarations */
-typedef struct iron_exec_context iron_exec_context_t;
-typedef struct iron_thread_context iron_thread_context_t;
-typedef struct iron_stack_frame iron_stack_frame_t;
-typedef struct iron_exception iron_exception_t;
 
 /* ============================================================================
  * Evaluation Stack

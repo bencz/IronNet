@@ -15,6 +15,7 @@
 
 #include "platform.h"
 #include "types.h"
+#include "forward.h"
 #include "memory.h"
 #include "vtable.h"
 #include "metadata.h"
@@ -22,18 +23,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Forward declarations */
-typedef struct iron_domain iron_domain_t;
-typedef struct iron_assembly iron_assembly_t;
-typedef struct iron_module iron_module_t;
-typedef struct iron_runtime_type iron_runtime_type_t;
-typedef struct iron_runtime_method iron_runtime_method_t;
-typedef struct iron_runtime_field iron_runtime_field_t;
-typedef struct iron_runtime_property iron_runtime_property_t;
-typedef struct iron_runtime_event iron_runtime_event_t;
-typedef struct iron_runtime_param iron_runtime_param_t;
-typedef struct iron_generic_inst iron_generic_inst_t;
 
 /* ============================================================================
  * Application Domain

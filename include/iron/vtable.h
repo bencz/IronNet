@@ -15,14 +15,11 @@
 
 #include "platform.h"
 #include "types.h"
+#include "forward.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Forward declarations */
-typedef struct iron_allocator iron_allocator_t;
-typedef struct iron_string_builder iron_string_builder_t;
 
 /* ============================================================================
  * Type Information
@@ -178,11 +175,6 @@ IRON_API iron_bool iron_is_exact_type(const iron_object_t *obj,
  * Extended Vtable for Runtime Types
  * ============================================================================ */
 
-/* Forward declarations */
-typedef struct iron_runtime_type iron_runtime_type_t;
-typedef struct iron_runtime_method iron_runtime_method_t;
-typedef struct iron_runtime_field iron_runtime_field_t;
-
 /* Runtime type vtable */
 typedef struct iron_runtime_type_vtable {
     iron_object_vtable_t base;
@@ -262,8 +254,6 @@ typedef struct iron_runtime_type_vtable {
 /* ============================================================================
  * Extended Vtable for Runtime Methods
  * ============================================================================ */
-
-typedef struct iron_exec_context iron_exec_context_t;
 
 /* Method invocation function pointer */
 typedef iron_result_t (*iron_method_invoke_fn)(

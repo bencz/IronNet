@@ -1,60 +1,18 @@
-# IronNet - Pure C89 CLI Interpreter
+# IronNet - Pure C99 CLI Interpreter
 
-IronNet is a pure C89 implementation of a Common Language Infrastructure (CLI) interpreter. It reads compiled .NET assemblies (PE/COFF format with CLI metadata) and interprets their Intermediate Language (IL) code.
+IronNet is a pure C99 implementation of a Common Language Infrastructure (CLI) interpreter. It reads compiled .NET assemblies (PE/COFF format with CLI metadata) and interprets their Intermediate Language (IL) code.
 
 ## Features
 
-- **Pure C89**: No C99 or later features, maximum portability
+- **Pure C99**: No C99 or later features, maximum portability
 - **Multi-platform**: Windows, Linux, macOS, BSD, and bare-metal support
 - **Multi-architecture**: x86, x64, ARM, ARM64, MIPS, PowerPC, RISC-V
 - **Multi-endianness**: Little-endian and big-endian support
-- **Word sizes**: 16, 24, 31, 32, and 64-bit support
 - **Full CLI metadata**: Complete ECMA-335 metadata parsing
 - **Generics support**: Generic types and methods
 - **Multi-threading**: Thread support with synchronization primitives
 - **Custom corlib**: Built-in Base Class Library with InternalCall support
 - **Garbage Collection**: Simple mark-and-sweep GC
-
-## Project Structure
-
-```
-IronNet/
-├── include/iron/          # Public headers
-│   ├── platform.h         # Platform detection and types
-│   ├── types.h            # Core type definitions
-│   ├── memory.h           # Memory management (allocators, containers)
-│   ├── vtable.h           # Runtime object system with vtables
-│   ├── pe.h               # PE/COFF file format
-│   ├── metadata.h         # CLI metadata reader
-│   ├── opcodes.h          # CIL opcode definitions
-│   ├── runtime.h          # Runtime type system
-│   ├── exec.h             # IL interpreter
-│   ├── gc.h               # Garbage collector
-│   ├── thread.h           # Threading primitives
-│   └── iron.h             # Main header (includes all)
-├── src/
-│   ├── core/              # Core infrastructure
-│   │   ├── platform.c
-│   │   ├── memory.c
-│   │   └── types.c
-│   ├── pe/                # PE/COFF reader
-│   │   └── pe.c
-│   ├── metadata/          # CLI metadata
-│   │   └── metadata.c
-│   ├── runtime/           # Runtime system
-│   │   ├── opcodes.c
-│   │   ├── exec.c
-│   │   └── runtime.c
-│   ├── thread/            # Threading
-│   │   └── thread.c
-│   ├── gc/                # Garbage collector
-│   │   └── gc.c
-│   └── iron.c             # Main entry point
-├── corlib/                # Custom Base Class Library (future)
-├── tests/                 # Unit tests
-├── Makefile
-└── README.md
-```
 
 ## Building
 
