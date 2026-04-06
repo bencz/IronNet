@@ -301,10 +301,13 @@ namespace System
                 throw new ArgumentOutOfRangeException("length");
             if (length == 0)
                 return Empty;
+            if (startIndex == 0 && length == Length)
+                return this;
 
-            string result = InternalAllocateStr(length);
-            // Copy characters (would need unsafe or internal call)
-            return result;
+            char[] chars = new char[length];
+            for (int i = 0; i < length; i++)
+                chars[i] = this[startIndex + i];
+            return new string(chars);
         }
     }
 }

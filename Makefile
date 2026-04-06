@@ -44,7 +44,6 @@ METADATA_SRCS = \
     $(SRCDIR)/metadata/metadata.c
 
 RUNTIME_SRCS = \
-    $(SRCDIR)/runtime/opcodes.c \
     $(SRCDIR)/runtime/opcode_table.c \
     $(SRCDIR)/runtime/exec.c \
     $(SRCDIR)/runtime/runtime.c
@@ -63,6 +62,8 @@ CORLIB_SRCS = \
     $(SRCDIR)/corlib/int32.c \
     $(SRCDIR)/corlib/environment.c \
     $(SRCDIR)/corlib/array.c \
+    $(SRCDIR)/corlib/gc.c \
+    $(SRCDIR)/corlib/type.c \
     $(SRCDIR)/corlib/corlib_main.c
 
 DISASM_SRCS = \
@@ -168,7 +169,6 @@ $(BUILDDIR)/core/memory.o: $(INCDIR)/iron/memory.h $(INCDIR)/iron/platform.h
 $(BUILDDIR)/core/types.o: $(INCDIR)/iron/types.h $(INCDIR)/iron/platform.h
 $(BUILDDIR)/pe/pe.o: $(INCDIR)/iron/pe.h $(INCDIR)/iron/platform.h $(INCDIR)/iron/types.h
 $(BUILDDIR)/metadata/metadata.o: $(INCDIR)/iron/metadata.h $(INCDIR)/iron/pe.h
-$(BUILDDIR)/runtime/opcodes.o: $(INCDIR)/iron/opcodes.h $(INCDIR)/iron/platform.h
 $(BUILDDIR)/runtime/exec.o: $(INCDIR)/iron/exec.h $(INCDIR)/iron/runtime.h
 $(BUILDDIR)/runtime/runtime.o: $(INCDIR)/iron/runtime.h $(INCDIR)/iron/metadata.h
 $(BUILDDIR)/thread/thread.o: $(INCDIR)/iron/thread.h $(INCDIR)/iron/platform.h

@@ -302,15 +302,5 @@ namespace System.Linq
     }
 }
 
-namespace System
-{
-    /// <summary>
-    /// Encapsulates a method that has one parameter and returns a value of the type specified by the TResult parameter.
-    /// </summary>
-    public delegate TResult Func<in T, out TResult>(T arg);
-    
-    /// <summary>
-    /// Encapsulates a method that has two parameters and returns a value of the type specified by the TResult parameter.
-    /// </summary>
-    public delegate TResult Func<in T1, in T2, out TResult>(T1 arg1, T2 arg2);
-}
+/* Func<> and Action<> delegate types are defined in
+ * System.Collections.Generic/List.cs (consolidated location) */

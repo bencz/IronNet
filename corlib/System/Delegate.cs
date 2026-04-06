@@ -89,14 +89,58 @@ namespace System
 
         protected override Delegate CombineImpl(Delegate follow)
         {
-            // TODO: Implement multicast combination
-            return this;
+            MulticastDelegate mc = (MulticastDelegate)follow;
+            Delegate[] thisList = GetInvocationList();
+            Delegate[] followList = mc.GetInvocationList();
+            Delegate[] newList = new Delegate[thisList.Length + followList.Length];
+            int i;
+            for (i = 0; i < thisList.Length; i++)
+                newList[i] = thisList[i];
+            for (int j = 0; j < followList.Length; j++)
+                newList[i + j] = followList[j];
+
+            /* Create result that looks like the last delegate but carries the full list.
+             * Since we can't construct a new MulticastDelegate directly (it's abstract),
+             * we copy this delegate and attach the combined invocation list. */
+            MulticastDelegate result = (MulticastDelegate)this.MemberwiseClone();
+            result._invocationList = newList;
+            return result;
         }
 
         protected override Delegate RemoveImpl(Delegate value)
         {
-            // TODO: Implement multicast removal
-            return base.RemoveImpl(value);
+            Delegate[] list = GetInvocationList();
+            if (list.Length == 1)
+                return base.RemoveImpl(value);
+
+            /* Find the last occurrence of value in the invocation list */
+            int removeIdx = -1;
+            for (int i = list.Length - 1; i >= 0; i--)
+            {
+                if (list[i].Equals(value))
+                {
+                    removeIdx = i;
+                    break;
+                }
+            }
+
+            if (removeIdx < 0)
+                return this;
+
+            if (list.Length == 2)
+                return list[1 - removeIdx];
+
+            Delegate[] newList = new Delegate[list.Length - 1];
+            int j = 0;
+            for (int i = 0; i < list.Length; i++)
+            {
+                if (i != removeIdx)
+                    newList[j++] = list[i];
+            }
+
+            MulticastDelegate result = (MulticastDelegate)this.MemberwiseClone();
+            result._invocationList = newList;
+            return result;
         }
 
         public Delegate[] GetInvocationList()

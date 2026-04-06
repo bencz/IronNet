@@ -317,8 +317,8 @@ iron_internal_call_fn iron_lookup_internal_call(iron_exec_context_t *ctx,
         if (method->declaring_type->full_name) {
             type_name = method->declaring_type->full_name;
         } else if (method->declaring_type->namespace_ && method->declaring_type->name) {
-            static char type_buf[256];
-            snprintf(type_buf, sizeof(type_buf), "%s.%s", 
+            char type_buf[256];
+            snprintf(type_buf, sizeof(type_buf), "%s.%s",
                      method->declaring_type->namespace_, method->declaring_type->name);
             type_name = type_buf;
         } else if (method->declaring_type->name) {
@@ -739,20 +739,10 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
                 if (asm_) {
                     res = iron_metadata_get_user_string(&asm_->metadata, str_index, &str_data, &str_len);
                     if (IRON_RESULT_OK(res) && str_len > 0) {
-                        /* Allocate string object: length (u32) + chars (u16[]) */
-                        void *str_obj = iron_alloc(exec_ctx->allocator, 
-                                                   sizeof(iron_u32) + str_len * sizeof(iron_u16));
+                        /* Allocate string via GC so it's tracked and collected properly */
+                        void *str_obj = iron_gc_alloc_string(exec_ctx, str_data, str_len);
                         if (str_obj) {
-                            iron_u32 i;
-                            iron_u16 *chars;
-                            /* Store length first */
-                            *((iron_u32 *)str_obj) = str_len;
-                            /* Copy characters after length */
-                            chars = (iron_u16 *)((iron_u8 *)str_obj + sizeof(iron_u32));
-                            for (i = 0; i < str_len; i++) {
-                                chars[i] = str_data[i];
-                            }
-                            iron_stack_push_ptr(stack, str_obj);
+                            iron_stack_push_obj(stack, str_obj);
                         } else {
                             iron_stack_push_null(stack);
                         }
@@ -832,18 +822,46 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
                                     /* Always try to find method in runtime type for callvirt */
                             /* This handles both virtual method override and interface implementation */
                             if (runtime_type && target_method->name) {
-                                iron_runtime_method_t *impl = 
+                                iron_runtime_method_t *impl =
                                     iron_type_find_method(runtime_type, target_method->name);
-                                if (impl && impl->body) {
+                                /* Verify param count matches to handle overloads */
+                                if (impl && impl->body &&
+                                    impl->param_count == target_method->param_count) {
                                     target_method = impl;
                                     /* Update assembly to the one containing the implementation */
                                     if (impl->declaring_type && impl->declaring_type->module &&
                                         impl->declaring_type->module->assembly) {
                                         target_assembly = impl->declaring_type->module->assembly;
                                     }
+                                } else if (impl && impl->body &&
+                                           impl->param_count != target_method->param_count) {
+                                    /* Name matches but param count differs - search for correct overload */
+                                    iron_u32 mi;
+                                    iron_bool found_overload = IRON_FALSE;
+                                    for (mi = 0; mi < runtime_type->method_count; mi++) {
+                                        iron_runtime_method_t *m = runtime_type->methods[mi];
+                                        if (m && m->name && m->body &&
+                                            strcmp(m->name, target_method->name) == 0 &&
+                                            m->param_count == target_method->param_count) {
+                                            target_method = m;
+                                            if (m->declaring_type && m->declaring_type->module &&
+                                                m->declaring_type->module->assembly) {
+                                                target_assembly = m->declaring_type->module->assembly;
+                                            }
+                                            found_overload = IRON_TRUE;
+                                            break;
+                                        }
+                                    }
+                                    if (!found_overload && impl->body) {
+                                        /* Fall back to any matching name */
+                                        target_method = impl;
+                                        if (impl->declaring_type && impl->declaring_type->module &&
+                                            impl->declaring_type->module->assembly) {
+                                            target_assembly = impl->declaring_type->module->assembly;
+                                        }
+                                    }
                                 } else if (!impl || !impl->body) {
-                                    /* Method not found in type - search in assembly by method name */
-                                    /* This handles interface method calls where the implementation is in a base class */
+                                    /* Method not found in type - search in assembly by method name + param count */
                                     if (runtime_type->module && runtime_type->module->assembly) {
                                         iron_assembly_t *obj_asm = runtime_type->module->assembly;
                                         iron_u32 m;
@@ -851,8 +869,8 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
                                             iron_u32 m_token = (IRON_TABLE_METHOD_DEF << 24) | m;
                                             iron_runtime_method_t *candidate = iron_resolve_method_token(obj_asm, m_token);
                                             if (candidate && candidate->name && candidate->body &&
-                                                strcmp(candidate->name, target_method->name) == 0) {
-                                                /* Found a method with matching name and body */
+                                                strcmp(candidate->name, target_method->name) == 0 &&
+                                                candidate->param_count == target_method->param_count) {
                                                 target_method = candidate;
                                                 target_assembly = obj_asm;
                                                 break;
@@ -981,7 +999,21 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
         case IRON_CEE_REM:
             val2 = iron_stack_pop(stack);
             val1 = iron_stack_pop(stack);
-            if (val1.type == IRON_VAL_I32 && val2.type == IRON_VAL_I32) {
+            if (val1.type == IRON_VAL_I64 || val2.type == IRON_VAL_I64) {
+                iron_i64 a = (val1.type == IRON_VAL_I64 ? val1.value.i64 : (iron_i64)val1.value.i32);
+                iron_i64 b = (val2.type == IRON_VAL_I64 ? val2.value.i64 : (iron_i64)val2.value.i32);
+                if (b == 0) {
+                    iron_throw_divide_by_zero(thread);
+                    frame->ip = ip;
+                    return IRON_INTERP_EXCEPTION;
+                }
+                iron_stack_push_i64(stack, a % b);
+            } else if (val1.type == IRON_VAL_F64 || val2.type == IRON_VAL_F64) {
+                /* Floating point remainder - use fmod */
+                iron_f64 a = (val1.type == IRON_VAL_F64 ? val1.value.f64 : (iron_f64)val1.value.f32);
+                iron_f64 b = (val2.type == IRON_VAL_F64 ? val2.value.f64 : (iron_f64)val2.value.f32);
+                iron_stack_push_f64(stack, a - (iron_i64)(a / b) * b);
+            } else {
                 if (val2.value.i32 == 0) {
                     iron_throw_divide_by_zero(thread);
                     frame->ip = ip;
@@ -995,47 +1027,89 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
         case IRON_CEE_AND:
             val2 = iron_stack_pop(stack);
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, val1.value.i32 & val2.value.i32);
+            if (val1.type == IRON_VAL_I64 || val2.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack,
+                    (val1.type == IRON_VAL_I64 ? val1.value.i64 : (iron_i64)val1.value.i32) &
+                    (val2.type == IRON_VAL_I64 ? val2.value.i64 : (iron_i64)val2.value.i32));
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32 & val2.value.i32);
+            }
             break;
-            
+
         case IRON_CEE_OR:
             val2 = iron_stack_pop(stack);
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, val1.value.i32 | val2.value.i32);
+            if (val1.type == IRON_VAL_I64 || val2.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack,
+                    (val1.type == IRON_VAL_I64 ? val1.value.i64 : (iron_i64)val1.value.i32) |
+                    (val2.type == IRON_VAL_I64 ? val2.value.i64 : (iron_i64)val2.value.i32));
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32 | val2.value.i32);
+            }
             break;
-            
+
         case IRON_CEE_XOR:
             val2 = iron_stack_pop(stack);
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, val1.value.i32 ^ val2.value.i32);
+            if (val1.type == IRON_VAL_I64 || val2.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack,
+                    (val1.type == IRON_VAL_I64 ? val1.value.i64 : (iron_i64)val1.value.i32) ^
+                    (val2.type == IRON_VAL_I64 ? val2.value.i64 : (iron_i64)val2.value.i32));
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32 ^ val2.value.i32);
+            }
             break;
-            
+
         case IRON_CEE_SHL:
             val2 = iron_stack_pop(stack);
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, val1.value.i32 << (val2.value.i32 & 0x1F));
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, val1.value.i64 << (val2.value.i32 & 0x3F));
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32 << (val2.value.i32 & 0x1F));
+            }
             break;
-            
+
         case IRON_CEE_SHR:
             val2 = iron_stack_pop(stack);
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, val1.value.i32 >> (val2.value.i32 & 0x1F));
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, val1.value.i64 >> (val2.value.i32 & 0x3F));
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32 >> (val2.value.i32 & 0x1F));
+            }
             break;
-            
+
+        case IRON_CEE_SHR_UN:
+            val2 = iron_stack_pop(stack);
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, (iron_i64)((iron_u64)val1.value.i64 >> (val2.value.i32 & 0x3F)));
+            } else {
+                iron_stack_push_i32(stack, (iron_i32)((iron_u32)val1.value.i32 >> (val2.value.i32 & 0x1F)));
+            }
+            break;
+
         case IRON_CEE_NEG:
             val1 = iron_stack_pop(stack);
             if (val1.type == IRON_VAL_I32) {
                 iron_stack_push_i32(stack, -val1.value.i32);
             } else if (val1.type == IRON_VAL_I64) {
                 iron_stack_push_i64(stack, -val1.value.i64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_f32(stack, -val1.value.f32);
             } else {
                 iron_stack_push_f64(stack, -val1.value.f64);
             }
             break;
-            
+
         case IRON_CEE_NOT:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, ~val1.value.i32);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, ~val1.value.i64);
+            } else {
+                iron_stack_push_i32(stack, ~val1.value.i32);
+            }
             break;
             
         /* Comparison operations */
@@ -1277,27 +1351,151 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
         /* Conversion instructions */
         case IRON_CEE_CONV_I1:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, (iron_i8)val1.value.i32);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i8)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i8)(iron_i64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i8)(iron_i32)val1.value.f32);
+            } else {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i8)val1.value.i32);
+            }
             break;
         case IRON_CEE_CONV_I2:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, (iron_i16)val1.value.i32);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i16)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i16)(iron_i64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i16)(iron_i32)val1.value.f32);
+            } else {
+                iron_stack_push_i32(stack, (iron_i32)(iron_i16)val1.value.i32);
+            }
             break;
         case IRON_CEE_CONV_I4:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, (iron_i32)val1.value.i64);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i32(stack, (iron_i32)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i32(stack, (iron_i32)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i32(stack, (iron_i32)val1.value.f32);
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32);
+            }
             break;
         case IRON_CEE_CONV_I8:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i64(stack, (iron_i64)val1.value.i32);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i64(stack, (iron_i64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i64(stack, (iron_i64)val1.value.f32);
+            } else {
+                iron_stack_push_i64(stack, (iron_i64)val1.value.i32);
+            }
             break;
         case IRON_CEE_CONV_U1:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, (iron_u8)val1.value.i32);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u8)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u8)(iron_u64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u8)(iron_u32)val1.value.f32);
+            } else {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u8)val1.value.i32);
+            }
             break;
         case IRON_CEE_CONV_U2:
             val1 = iron_stack_pop(stack);
-            iron_stack_push_i32(stack, (iron_u16)val1.value.i32);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u16)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u16)(iron_u64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u16)(iron_u32)val1.value.f32);
+            } else {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u16)val1.value.i32);
+            }
+            break;
+        case IRON_CEE_CONV_U4:
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u32)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u32)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i32(stack, (iron_i32)(iron_u32)val1.value.f32);
+            } else {
+                iron_stack_push_i32(stack, val1.value.i32); /* u32 and i32 are same width */
+            }
+            break;
+        case IRON_CEE_CONV_U8:
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, val1.value.i64); /* Already 64-bit */
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i64(stack, (iron_i64)(iron_u64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i64(stack, (iron_i64)(iron_u64)val1.value.f32);
+            } else {
+                iron_stack_push_i64(stack, (iron_i64)(iron_u32)val1.value.i32);
+            }
+            break;
+        case IRON_CEE_CONV_R4:
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_f32(stack, (iron_f32)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_f32(stack, (iron_f32)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_f32(stack, val1.value.f32);
+            } else {
+                iron_stack_push_f32(stack, (iron_f32)val1.value.i32);
+            }
+            break;
+        case IRON_CEE_CONV_R8:
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_f64(stack, (iron_f64)val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_f64(stack, val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_f64(stack, (iron_f64)val1.value.f32);
+            } else {
+                iron_stack_push_f64(stack, (iron_f64)val1.value.i32);
+            }
+            break;
+        case IRON_CEE_CONV_I:
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i64(stack, (iron_i64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i64(stack, (iron_i64)val1.value.f32);
+            } else if (val1.type == IRON_VAL_PTR) {
+                iron_stack_push_i64(stack, (iron_i64)(iron_size)val1.value.ptr);
+            } else {
+                iron_stack_push_i64(stack, (iron_i64)val1.value.i32);
+            }
+            break;
+        case IRON_CEE_CONV_U:
+            val1 = iron_stack_pop(stack);
+            if (val1.type == IRON_VAL_I64) {
+                iron_stack_push_i64(stack, val1.value.i64);
+            } else if (val1.type == IRON_VAL_F64) {
+                iron_stack_push_i64(stack, (iron_i64)(iron_u64)val1.value.f64);
+            } else if (val1.type == IRON_VAL_F32) {
+                iron_stack_push_i64(stack, (iron_i64)(iron_u64)(iron_u32)(iron_i32)val1.value.f32);
+            } else if (val1.type == IRON_VAL_PTR) {
+                iron_stack_push_i64(stack, (iron_i64)(iron_size)val1.value.ptr);
+            } else {
+                iron_stack_push_i64(stack, (iron_i64)(iron_u32)val1.value.i32);
+            }
             break;
             
         /* Array creation */
@@ -1771,10 +1969,156 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
             }
             break;
             
+        /* ============================================================
+         * Exception Handling Opcodes
+         * ============================================================ */
+        case IRON_CEE_THROW:
+        {
+            iron_stack_value_t ex_val;
+            iron_exception_t *ex_obj;
+
+            ex_val = iron_stack_pop(stack);
+            ex_obj = (iron_exception_t *)ex_val.value.obj;
+
+            if (!ex_obj) {
+                iron_throw_null_reference(thread);
+            } else {
+                iron_throw(thread, ex_obj);
+            }
+
+            frame->ip = ip;
+            return IRON_INTERP_EXCEPTION;
+        }
+
+        case IRON_CEE_RETHROW:
+        {
+            /* Re-throw the current exception */
+            if (thread->exception_state.current_exception) {
+                thread->exception_state.is_rethrow = IRON_TRUE;
+            }
+            frame->ip = ip;
+            return IRON_INTERP_EXCEPTION;
+        }
+
+        case IRON_CEE_LEAVE:
+        {
+            iron_i32 offset;
+            iron_u32 target;
+
+            offset = (iron_i32)((iron_i16)(code[ip] | (code[ip + 1] << 8) |
+                     (code[ip + 2] << 16) | (code[ip + 3] << 24)));
+            ip += 4;
+            target = (iron_u32)((iron_i32)ip + offset);
+
+            /* Clear the evaluation stack back to frame's stack base */
+            stack->size = frame->stack_base;
+
+            /* Clear any pending exception (leave exits protected regions) */
+            thread->exception_state.current_exception = NULL;
+
+            /* Execute any finally blocks that cover the current IP but not the target */
+            if (frame->method && frame->method->body) {
+                iron_method_body_t *body = frame->method->body;
+                iron_u32 leave_ip = ip - 4 - 1; /* IP of the leave instruction */
+                iron_u32 fi;
+
+                for (fi = 0; fi < body->exception_count; fi++) {
+                    iron_exception_clause_t *clause = &body->exceptions[fi];
+
+                    if (clause->flags == IRON_EX_CLAUSE_FINALLY) {
+                        iron_u32 try_end = clause->try_offset + clause->try_length;
+
+                        /* If we're leaving from inside this try block
+                         * and the target is outside it, run the finally */
+                        if (leave_ip >= clause->try_offset && leave_ip < try_end &&
+                            (target < clause->try_offset || target >= try_end)) {
+                            /* Save target and jump to finally handler */
+                            /* For simplicity: execute the finally inline.
+                             * Set IP to the finally, and after endfinally
+                             * we'll jump to the target. */
+                            frame->ip = clause->handler_offset;
+                            /* Store the leave target in exception_handler_index
+                             * (repurposed as leave target when in finally) */
+                            frame->exception_handler_index = target;
+                            return IRON_INTERP_OK;
+                        }
+                    }
+                }
+            }
+
+            /* No finally blocks to execute - jump directly to target */
+            ip = target;
+            break;
+        }
+
+        case IRON_CEE_LEAVE_S:
+        {
+            iron_i8 offset;
+            iron_u32 target;
+
+            offset = (iron_i8)code[ip];
+            ip += 1;
+            target = (iron_u32)((iron_i32)ip + (iron_i32)offset);
+
+            /* Clear the evaluation stack back to frame's stack base */
+            stack->size = frame->stack_base;
+
+            /* Clear any pending exception */
+            thread->exception_state.current_exception = NULL;
+
+            /* Execute any finally blocks */
+            if (frame->method && frame->method->body) {
+                iron_method_body_t *body = frame->method->body;
+                iron_u32 leave_ip = ip - 1 - 1; /* IP of the leave.s instruction */
+                iron_u32 fi;
+
+                for (fi = 0; fi < body->exception_count; fi++) {
+                    iron_exception_clause_t *clause = &body->exceptions[fi];
+
+                    if (clause->flags == IRON_EX_CLAUSE_FINALLY) {
+                        iron_u32 try_end = clause->try_offset + clause->try_length;
+
+                        if (leave_ip >= clause->try_offset && leave_ip < try_end &&
+                            (target < clause->try_offset || target >= try_end)) {
+                            frame->ip = clause->handler_offset;
+                            frame->exception_handler_index = target;
+                            return IRON_INTERP_OK;
+                        }
+                    }
+                }
+            }
+
+            ip = target;
+            break;
+        }
+
+        case IRON_CEE_ENDFINALLY:
+        {
+            /* Check if there's a pending exception to continue unwinding */
+            if (thread->exception_state.current_exception) {
+                /* Continue exception unwinding */
+                frame->ip = ip;
+                return IRON_INTERP_EXCEPTION;
+            }
+
+            /* Otherwise, return to the leave target stored in exception_handler_index */
+            ip = frame->exception_handler_index;
+            break;
+        }
+
+        case IRON_CEE_ENDFILTER:
+        {
+            /* Pop the filter result (1 = handle, 0 = continue search) */
+            iron_stack_pop(stack);
+            /* For now, treat as end-of-handler */
+            frame->ip = ip;
+            return IRON_INTERP_OK;
+        }
+
         default:
             /* Unimplemented opcode */
-            IRON_ERROR_EXEC("Unimplemented opcode: 0x%04X (%s) at IP=%u", 
-                           opcode, 
+            IRON_ERROR_EXEC("Unimplemented opcode: 0x%04X (%s) at IP=%u",
+                           opcode,
                            opcode_info ? opcode_info->name : "unknown",
                            frame->ip);
             frame->ip = ip;
@@ -1915,6 +2259,101 @@ void iron_throw_divide_by_zero(iron_thread_context_t *thread)
     }
     
     iron_throw(thread, ex);
+}
+
+/* ============================================================================
+ * Exception Handler Lookup
+ * ============================================================================ */
+
+iron_bool iron_find_exception_handler(iron_thread_context_t *thread,
+                                      iron_exception_t *ex,
+                                      iron_stack_frame_t **out_frame,
+                                      iron_u32 *out_handler_index)
+{
+    iron_stack_frame_t *frame;
+
+    if (!thread || !out_frame || !out_handler_index) {
+        return IRON_FALSE;
+    }
+
+    /* Walk up the call stack looking for a handler */
+    for (frame = thread->current_frame; frame != NULL; frame = frame->prev) {
+        iron_method_body_t *body;
+        iron_u32 throw_ip;
+        iron_u32 i;
+
+        if (!frame->method || !frame->method->body) {
+            continue;
+        }
+
+        body = frame->method->body;
+        throw_ip = frame->ip;
+
+        /* Search exception clauses for this method */
+        for (i = 0; i < body->exception_count; i++) {
+            iron_exception_clause_t *clause = &body->exceptions[i];
+            iron_u32 try_end = clause->try_offset + clause->try_length;
+
+            /* Check if the throw IP is within this try block */
+            if (throw_ip < clause->try_offset || throw_ip >= try_end) {
+                continue;
+            }
+
+            if (clause->flags == IRON_EX_CLAUSE_EXCEPTION) {
+                /* Catch clause - check type compatibility */
+                iron_bool type_match = IRON_FALSE;
+
+                if (ex && ex->type) {
+                    /* Resolve the catch type from the class token */
+                    iron_runtime_type_t *catch_type = NULL;
+
+                    if (frame->method->declaring_type &&
+                        frame->method->declaring_type->module) {
+                        catch_type = iron_type_resolve_token(
+                            frame->method->declaring_type->module,
+                            clause->u.class_token);
+                    }
+
+                    if (catch_type) {
+                        /* Check if exception type matches or is a subtype */
+                        iron_runtime_type_t *check = ex->type;
+                        while (check) {
+                            if (check == catch_type) {
+                                type_match = IRON_TRUE;
+                                break;
+                            }
+                            /* Also check by name for cross-assembly matches */
+                            if (check->name && catch_type->name &&
+                                strcmp(check->name, catch_type->name) == 0) {
+                                if ((!check->namespace_ && !catch_type->namespace_) ||
+                                    (check->namespace_ && catch_type->namespace_ &&
+                                     strcmp(check->namespace_, catch_type->namespace_) == 0)) {
+                                    type_match = IRON_TRUE;
+                                    break;
+                                }
+                            }
+                            check = check->base_type;
+                        }
+                    } else {
+                        /* If we can't resolve the catch type, catch everything
+                         * (better than crashing) */
+                        type_match = IRON_TRUE;
+                    }
+                } else {
+                    /* No exception type info - catch everything */
+                    type_match = IRON_TRUE;
+                }
+
+                if (type_match) {
+                    *out_frame = frame;
+                    *out_handler_index = i;
+                    return IRON_TRUE;
+                }
+            }
+        }
+    }
+
+    return IRON_FALSE;
 }
 
 /* ============================================================================
@@ -2403,7 +2842,7 @@ static iron_result_t resolve_method_token(iron_thread_context_t *thread,
             
             if (icall) {
                 /* Create a temporary method structure for internal call */
-                static iron_runtime_method_t temp_method;
+                iron_runtime_method_t temp_method;
                 memset(&temp_method, 0, sizeof(temp_method));
                 temp_method.name = method_name;
                 temp_method.token = token;

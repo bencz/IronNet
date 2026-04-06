@@ -4,6 +4,7 @@
  */
 
 #include "iron/corlib.h"
+#include "iron/exec.h"
 #include <string.h>
 
 /* ============================================================================
@@ -147,6 +148,92 @@ iron_result_t icall_String_get_Chars(
     result->type = IRON_VAL_I32;
     result->value.i32 = chars[index];
     
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_String_Equals(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    void *str1, *str2;
+    iron_u32 len1, len2, i;
+    iron_u16 *chars1, *chars2;
+
+    (void)ctx;
+
+    if (arg_count < 2 || !result) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "String.Equals requires two strings");
+    }
+
+    str1 = (args[0].type == IRON_VAL_PTR) ? args[0].value.ptr : args[0].value.obj;
+    str2 = (args[1].type == IRON_VAL_PTR) ? args[1].value.ptr : args[1].value.obj;
+
+    if (str1 == str2) {
+        result->type = IRON_VAL_I32;
+        result->value.i32 = 1;
+        return IRON_SUCCESS;
+    }
+
+    if (!str1 || !str2) {
+        result->type = IRON_VAL_I32;
+        result->value.i32 = 0;
+        return IRON_SUCCESS;
+    }
+
+    len1 = iron_string_get_length(str1);
+    len2 = iron_string_get_length(str2);
+
+    if (len1 != len2) {
+        result->type = IRON_VAL_I32;
+        result->value.i32 = 0;
+        return IRON_SUCCESS;
+    }
+
+    chars1 = iron_string_get_chars(str1);
+    chars2 = iron_string_get_chars(str2);
+
+    for (i = 0; i < len1; i++) {
+        if (chars1[i] != chars2[i]) {
+            result->type = IRON_VAL_I32;
+            result->value.i32 = 0;
+            return IRON_SUCCESS;
+        }
+    }
+
+    result->type = IRON_VAL_I32;
+    result->value.i32 = 1;
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_String_InternalAllocateStr(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    iron_i32 length;
+    void *str_obj;
+
+    if (arg_count < 1 || !result) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "InternalAllocateStr requires length");
+    }
+
+    length = args[0].value.i32;
+    if (length < 0) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "String length cannot be negative");
+    }
+
+    /* Allocate a string with the given length, chars zeroed */
+    str_obj = iron_gc_alloc_string(ctx, NULL, (iron_u32)length);
+    if (!str_obj) {
+        return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to allocate string");
+    }
+
+    result->type = IRON_VAL_OBJ;
+    result->value.obj = str_obj;
+
     return IRON_SUCCESS;
 }
 

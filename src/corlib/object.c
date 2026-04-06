@@ -5,7 +5,9 @@
 
 #include "iron/corlib.h"
 #include "iron/gc.h"
+#include "iron/vtable.h"
 #include <stdio.h>
+#include <string.h>
 
 /* ============================================================================
  * System.Object Internal Calls
@@ -104,6 +106,45 @@ iron_result_t icall_Object_ReferenceEquals(
     result->type = IRON_VAL_I32;
     result->value.i32 = (args[0].value.obj == args[1].value.obj) ? 1 : 0;
     
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_Object_MemberwiseClone(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    void *obj;
+    void *clone;
+    iron_gc_header_t *header;
+    iron_size obj_size;
+
+    if (arg_count < 1 || !result) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "MemberwiseClone requires 'this'");
+    }
+
+    obj = args[0].value.obj;
+    if (!obj) {
+        return IRON_ERROR(IRON_ERR_NULL_REFERENCE, "NullReferenceException");
+    }
+
+    /* Get the GC header to find type and size */
+    header = IRON_GC_HEADER(obj);
+    obj_size = header->size;
+
+    /* Allocate new object with same type and size */
+    clone = iron_gc_alloc_object(&ctx->gc, header->type, obj_size);
+    if (!clone) {
+        return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to allocate clone");
+    }
+
+    /* Shallow copy: copy all fields (including embedded value types and references) */
+    memcpy(clone, obj, obj_size);
+
+    result->type = IRON_VAL_OBJ;
+    result->value.obj = clone;
+
     return IRON_SUCCESS;
 }
 

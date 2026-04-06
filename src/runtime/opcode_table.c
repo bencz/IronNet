@@ -1,6 +1,10 @@
 /*
  * IronNet CLR Interpreter
- * opcode_table.c - Opcode information table implementation
+ * opcode_table.c - Opcode information table and utility functions
+ *
+ * This file contains:
+ * - Complete opcode info tables (single-byte and two-byte)
+ * - Opcode decode, name, operand size, branch/prefix query functions
  */
 
 #include "iron/opcodes.h"
@@ -269,7 +273,7 @@ static const iron_opcode_info_t g_opcode_table_fe[32] = {
 const iron_opcode_info_t *iron_opcode_info(iron_opcode_t opcode)
 {
     iron_u32 idx = (iron_u32)opcode;
-    
+
     if (idx < 256) {
         if (g_opcode_table[idx].name != NULL) {
             return &g_opcode_table[idx];
@@ -281,4 +285,76 @@ const iron_opcode_info_t *iron_opcode_info(iron_opcode_t opcode)
         }
     }
     return NULL;
+}
+
+/* ============================================================================
+ * Opcode Utility Functions (consolidated from opcodes.c)
+ * ============================================================================ */
+
+iron_opcode_t iron_opcode_decode(const iron_u8 *code, iron_u32 *size)
+{
+    if (code[0] == 0xFE) {
+        *size = 2;
+        return (iron_opcode_t)(0x100 + code[1]);
+    }
+    *size = 1;
+    return (iron_opcode_t)code[0];
+}
+
+const char *iron_opcode_name(iron_opcode_t opcode)
+{
+    const iron_opcode_info_t *info = iron_opcode_info(opcode);
+    if (info && info->name) {
+        return info->name;
+    }
+    return "unknown";
+}
+
+iron_u32 iron_operand_size(iron_operand_type_t type)
+{
+    switch (type) {
+        case IRON_OP_NONE:         return 0;
+        case IRON_OP_I8:           return 1;
+        case IRON_OP_U8:           return 1;
+        case IRON_OP_I16:          return 2;
+        case IRON_OP_I32:          return 4;
+        case IRON_OP_I64:          return 8;
+        case IRON_OP_F32:          return 4;
+        case IRON_OP_F64:          return 8;
+        case IRON_OP_TOKEN:        return 4;
+        case IRON_OP_STRING:       return 4;
+        case IRON_OP_BRANCH:       return 4;
+        case IRON_OP_SHORT_BRANCH: return 1;
+        case IRON_OP_SWITCH:       return 0; /* Variable */
+        case IRON_OP_VAR:          return 2;
+        case IRON_OP_SHORT_VAR:    return 1;
+        case IRON_OP_ARG:          return 2;
+        case IRON_OP_SHORT_ARG:    return 1;
+        default:                   return 0;
+    }
+}
+
+iron_bool iron_opcode_is_branch(iron_opcode_t opcode)
+{
+    const iron_opcode_info_t *info = iron_opcode_info(opcode);
+    if (info) {
+        return (info->flow == IRON_FLOW_BRANCH ||
+                info->flow == IRON_FLOW_COND_BRANCH) ? IRON_TRUE : IRON_FALSE;
+    }
+    return IRON_FALSE;
+}
+
+iron_bool iron_opcode_is_prefix(iron_opcode_t opcode)
+{
+    switch (opcode) {
+        case IRON_CEE_UNALIGNED:
+        case IRON_CEE_VOLATILE:
+        case IRON_CEE_TAIL:
+        case IRON_CEE_CONSTRAINED:
+        case IRON_CEE_NO:
+        case IRON_CEE_READONLY:
+            return IRON_TRUE;
+        default:
+            return IRON_FALSE;
+    }
 }

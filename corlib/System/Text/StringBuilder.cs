@@ -216,9 +216,59 @@ namespace System.Text
             if (oldValue.Length == 0)
                 throw new ArgumentException("oldValue cannot be empty");
 
-            // Simple implementation - not optimized
-            string current = ToString();
-            // TODO: Implement proper string replacement
+            if (newValue == null)
+                newValue = "";
+
+            int oldLen = oldValue.Length;
+            int newLen = newValue.Length;
+            int i = 0;
+
+            while (i <= _length - oldLen)
+            {
+                bool match = true;
+                for (int j = 0; j < oldLen; j++)
+                {
+                    if (_buffer[i + j] != oldValue[j])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match)
+                {
+                    if (newLen != oldLen)
+                    {
+                        int delta = newLen - oldLen;
+                        if (delta > 0)
+                            EnsureCapacity(_length + delta);
+
+                        /* Shift characters after the match */
+                        if (delta > 0)
+                        {
+                            for (int k = _length - 1; k >= i + oldLen; k--)
+                                _buffer[k + delta] = _buffer[k];
+                        }
+                        else if (delta < 0)
+                        {
+                            for (int k = i + oldLen; k < _length; k++)
+                                _buffer[k + delta] = _buffer[k];
+                        }
+                        _length += delta;
+                    }
+
+                    /* Copy replacement string */
+                    for (int k = 0; k < newLen; k++)
+                        _buffer[i + k] = newValue[k];
+
+                    i += newLen;
+                }
+                else
+                {
+                    i++;
+                }
+            }
+
             return this;
         }
 

@@ -47,11 +47,33 @@ namespace System
         /// <summary>
         /// Copies a range of elements from an Array starting at the specified source index
         /// </summary>
-        public static void Copy(Array sourceArray, int sourceIndex, 
+        public static void Copy(Array sourceArray, int sourceIndex,
                                 Array destinationArray, int destinationIndex, int length)
         {
-            // TODO: Implement with offset
-            Copy(sourceArray, destinationArray, length);
+            if (sourceArray == null)
+                throw new ArgumentNullException("sourceArray");
+            if (destinationArray == null)
+                throw new ArgumentNullException("destinationArray");
+            if (sourceIndex < 0 || destinationIndex < 0 || length < 0)
+                throw new ArgumentOutOfRangeException();
+            if (sourceIndex + length > sourceArray.Length)
+                throw new ArgumentException("Source array too small");
+            if (destinationIndex + length > destinationArray.Length)
+                throw new ArgumentException("Destination array too small");
+
+            /* Copy element by element using GetValue/SetValue.
+             * Handle overlapping regions by choosing copy direction. */
+            if (sourceArray == destinationArray && sourceIndex < destinationIndex)
+            {
+                /* Copy backward to avoid overwriting source elements */
+                for (int i = length - 1; i >= 0; i--)
+                    destinationArray.SetValue(sourceArray.GetValue(sourceIndex + i), destinationIndex + i);
+            }
+            else
+            {
+                for (int i = 0; i < length; i++)
+                    destinationArray.SetValue(sourceArray.GetValue(sourceIndex + i), destinationIndex + i);
+            }
         }
 
         /// <summary>

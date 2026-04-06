@@ -19,6 +19,7 @@ extern iron_result_t icall_Object_GetHashCode(iron_exec_context_t*, iron_stack_v
 extern iron_result_t icall_Object_Equals(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
 extern iron_result_t icall_Object_ReferenceEquals(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
 extern iron_result_t icall_Object_ToString(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_Object_MemberwiseClone(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
 
 /* console.c */
 extern iron_result_t icall_Console_WriteLine_String(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
@@ -57,6 +58,22 @@ extern iron_result_t icall_Environment_Exit(iron_exec_context_t*, iron_stack_val
 extern iron_result_t icall_Array_get_Length(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
 extern iron_result_t icall_Array_get_Rank(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
 extern iron_result_t icall_Array_Copy(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_Array_GetValue(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_Array_SetValue(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+
+/* gc.c */
+extern iron_result_t icall_GC_Collect(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_GC_GetTotalMemory(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_GC_SuppressFinalize(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+
+/* type.c */
+extern iron_result_t icall_Type_GetTypeFromHandle(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_Type_get_Name(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_Type_get_FullName(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+
+/* string.c (additional) */
+extern iron_result_t icall_String_Equals(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
+extern iron_result_t icall_String_InternalAllocateStr(iron_exec_context_t*, iron_stack_value_t*, iron_u32, iron_stack_value_t*);
 
 /* ============================================================================
  * Internal Call Registration Table
@@ -77,11 +94,14 @@ static const icall_entry_t g_icall_table[] = {
     { "System.Object", "Equals", "System.Object", icall_Object_Equals },
     { "System.Object", "ReferenceEquals", "System.Object,System.Object", icall_Object_ReferenceEquals },
     { "System.Object", "ToString", "", icall_Object_ToString },
-    
+    { "System.Object", "MemberwiseClone", "", icall_Object_MemberwiseClone },
+
     /* System.String */
     { "System.String", "get_Length", "", icall_String_get_Length },
     { "System.String", "get_Chars", "System.Int32", icall_String_get_Chars },
     { "System.String", "Concat", "System.String,System.String", icall_String_Concat },
+    { "System.String", "Equals", "System.String,System.String", icall_String_Equals },
+    { "System.String", "InternalAllocateStr", "System.Int32", icall_String_InternalAllocateStr },
     
     /* System.Int32 */
     { "System.Int32", "ToString", "", icall_Int32_ToString },
@@ -121,7 +141,19 @@ static const icall_entry_t g_icall_table[] = {
     { "System.Array", "get_Length", "", icall_Array_get_Length },
     { "System.Array", "get_Rank", "", icall_Array_get_Rank },
     { "System.Array", "Copy", "System.Array,System.Array,System.Int32", icall_Array_Copy },
-    
+    { "System.Array", "GetValue", "System.Int32", icall_Array_GetValue },
+    { "System.Array", "SetValue", "System.Object,System.Int32", icall_Array_SetValue },
+
+    /* System.GC */
+    { "System.GC", "Collect", "", icall_GC_Collect },
+    { "System.GC", "GetTotalMemory", "System.Boolean", icall_GC_GetTotalMemory },
+    { "System.GC", "SuppressFinalize", "System.Object", icall_GC_SuppressFinalize },
+
+    /* System.Type */
+    { "System.Type", "GetTypeFromHandle", "System.RuntimeTypeHandle", icall_Type_GetTypeFromHandle },
+    { "System.Type", "get_Name", "", icall_Type_get_Name },
+    { "System.Type", "get_FullName", "", icall_Type_get_FullName },
+
     /* Sentinel */
     { NULL, NULL, NULL, NULL }
 };

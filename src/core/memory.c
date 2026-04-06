@@ -638,18 +638,20 @@ void iron_sb_printf(iron_string_builder_t *sb, const char *fmt, ...)
     va_list args;
     int len;
     char temp[1024];
-    
+
     va_start(args, fmt);
-    
-    /* Use a temp buffer to get the length and content */
-    len = vsprintf(temp, fmt, args);
-    
+    len = vsnprintf(temp, sizeof(temp), fmt, args);
     va_end(args);
-    
+
     if (len < 0) {
         return;
     }
-    
+
+    /* Clamp to buffer size if output was truncated */
+    if ((iron_size)len >= sizeof(temp)) {
+        len = (int)(sizeof(temp) - 1);
+    }
+
     if (len > 0) {
         iron_sb_append(sb, temp, (iron_size)len);
     }
@@ -880,34 +882,57 @@ iron_bool iron_hashmap_remove(iron_hashmap_t *map, const void *key)
 {
     iron_u32 hash;
     iron_size index;
-    
+
     if (map->capacity == 0) return IRON_FALSE;
-    
+
     hash = map->hash_fn(key, map->key_size);
     index = hash % map->capacity;
-    
+
     while (map->entries[index].key) {
         if (map->entries[index].hash == hash) {
             iron_bool match = IRON_FALSE;
             if (map->key_eq_fn) {
                 match = map->key_eq_fn(map->entries[index].key, key, map->key_size);
             } else {
-                match = iron_memcmp(map->entries[index].key, key, 
+                match = iron_memcmp(map->entries[index].key, key,
                                     map->key_size) == 0;
             }
             if (match) {
+                iron_size empty;
+
                 iron_free(map->allocator, map->entries[index].key, map->key_size);
                 iron_free(map->allocator, map->entries[index].value, map->value_size);
                 map->entries[index].key = NULL;
                 map->entries[index].value = NULL;
                 map->entries[index].hash = 0;
                 map->count--;
+
+                /* Backward-shift deletion: move displaced entries back
+                 * to maintain open-addressing probe chains */
+                empty = index;
+                index = (index + 1) % map->capacity;
+                while (map->entries[index].key) {
+                    iron_size natural = map->entries[index].hash % map->capacity;
+                    /* Check if this entry's natural position is at or before
+                     * the empty slot (accounting for wraparound) */
+                    if ((empty <= index) ?
+                        (natural <= empty || natural > index) :
+                        (natural <= empty && natural > index)) {
+                        map->entries[empty] = map->entries[index];
+                        map->entries[index].key = NULL;
+                        map->entries[index].value = NULL;
+                        map->entries[index].hash = 0;
+                        empty = index;
+                    }
+                    index = (index + 1) % map->capacity;
+                }
+
                 return IRON_TRUE;
             }
         }
         index = (index + 1) % map->capacity;
     }
-    
+
     return IRON_FALSE;
 }
 

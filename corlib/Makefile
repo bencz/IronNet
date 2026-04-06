@@ -11,8 +11,8 @@ CSCFLAGS := -nostdlib -noconfig -target:library -langversion:latest -nullable:di
 BUILD_DIR := ../bin
 CORLIB_DIR := .
 
-# Source files - recursively find all .cs files
-SOURCES := $(shell find $(CORLIB_DIR) -name "*.cs" -type f)
+# Source files - recursively find all .cs files (exclude obj/ directory)
+SOURCES := $(shell find $(CORLIB_DIR) -path "$(CORLIB_DIR)/obj" -prune -o -name "*.cs" -type f -print)
 
 # Output
 OUTPUT := $(BUILD_DIR)/corlib.dll

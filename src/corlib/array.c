@@ -98,6 +98,83 @@ iron_result_t icall_Array_Copy(
     for (i = 0; i < length; i++) {
         dst_elements[i] = src_elements[i];
     }
-    
+
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_Array_GetValue(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    void *arr;
+    iron_i32 index;
+    iron_i32 arr_len;
+    void **elements;
+
+    (void)ctx;
+
+    if (arg_count < 2 || !result) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Array.GetValue requires this + index");
+    }
+
+    arr = args[0].value.obj;
+    index = args[1].value.i32;
+
+    if (!arr) {
+        return IRON_ERROR(IRON_ERR_NULL_REFERENCE, "NullReferenceException");
+    }
+
+    arr_len = *((iron_i32 *)arr);
+    if (index < 0 || index >= arr_len) {
+        return IRON_ERROR(IRON_ERR_INDEX_OUT_OF_RANGE, "IndexOutOfRangeException");
+    }
+
+    elements = (void **)((iron_u8 *)arr + sizeof(iron_i32));
+    result->type = IRON_VAL_OBJ;
+    result->value.obj = elements[index];
+
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_Array_SetValue(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    void *arr;
+    void *value;
+    iron_i32 index;
+    iron_i32 arr_len;
+    void **elements;
+
+    (void)ctx;
+
+    if (arg_count < 3) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Array.SetValue requires this + value + index");
+    }
+
+    arr = args[0].value.obj;
+    value = args[1].value.obj;
+    index = args[2].value.i32;
+
+    if (!arr) {
+        return IRON_ERROR(IRON_ERR_NULL_REFERENCE, "NullReferenceException");
+    }
+
+    arr_len = *((iron_i32 *)arr);
+    if (index < 0 || index >= arr_len) {
+        return IRON_ERROR(IRON_ERR_INDEX_OUT_OF_RANGE, "IndexOutOfRangeException");
+    }
+
+    elements = (void **)((iron_u8 *)arr + sizeof(iron_i32));
+    elements[index] = value;
+
+    if (result) {
+        result->type = 0xFF; /* void return */
+    }
+
     return IRON_SUCCESS;
 }

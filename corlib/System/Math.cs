@@ -17,7 +17,19 @@ namespace System
         public static extern double Cos(double a);
 
         [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Tan(double a);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern double Sqrt(double d);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Log(double d);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Log10(double d);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Exp(double d);
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern int Abs(int value);
@@ -65,34 +77,17 @@ namespace System
             return val1 < val2 ? val1 : val2;
         }
 
-        public static double Floor(double d)
-        {
-            return (double)(long)d - (d < 0 && d != (long)d ? 1 : 0);
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Floor(double d);
 
-        public static double Ceiling(double a)
-        {
-            return (double)(long)a + (a > 0 && a != (long)a ? 1 : 0);
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Ceiling(double a);
 
-        public static double Round(double a)
-        {
-            return Floor(a + 0.5);
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Round(double a);
 
-        public static double Pow(double x, double y)
-        {
-            // Simple implementation for integer powers
-            if (y == 0) return 1;
-            if (y == 1) return x;
-            if (y < 0) return 1.0 / Pow(x, -y);
-            
-            double result = 1;
-            int n = (int)y;
-            for (int i = 0; i < n; i++)
-                result *= x;
-            return result;
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern double Pow(double x, double y);
 
         public static int Sign(int value)
         {
