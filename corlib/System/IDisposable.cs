@@ -9,6 +9,14 @@ namespace System
     }
 
     /// <summary>
+    /// Provides a mechanism for asynchronously releasing unmanaged resources.
+    /// </summary>
+    public interface IAsyncDisposable
+    {
+        Threading.Tasks.ValueTask DisposeAsync();
+    }
+
+    /// <summary>
     /// Defines a generalized type-specific comparison method
     /// </summary>
     public interface IComparable

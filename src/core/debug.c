@@ -181,9 +181,18 @@ iron_bool iron_debug_should_log(iron_log_level_t level, iron_log_component_t com
 
 static void get_timestamp(char *buf, size_t size)
 {
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    strftime(buf, size, "%H:%M:%S", tm_info);
+    iron_calendar_time_t local_time;
+
+    if (!buf || size == 0) {
+        return;
+    }
+
+    if (!iron_platform_get_local_time(&local_time)) {
+        buf[0] = '\0';
+        return;
+    }
+
+    snprintf(buf, size, "%02d:%02d:%02d", local_time.hour, local_time.minute, local_time.second);
 }
 
 static const char *get_component_short_name(iron_log_component_t comp)
@@ -388,22 +397,44 @@ iron_u32 iron_debug_parse_components(const char *str)
     iron_u32 result = 0;
     char buf[256];
     char *token;
-    char *saveptr = NULL;
+    char *separator;
+    char *end;
+    size_t length;
     int i;
     
-    if (!str) return IRON_LOG_COMP_ALL;
-    
-    if (strcmp(str, "all") == 0 || strcmp(str, "ALL") == 0) {
-        return IRON_LOG_COMP_ALL;
+    if (!str) {
+        return (iron_u32)IRON_LOG_COMP_ALL;
     }
     
-    strncpy(buf, str, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    if (strcmp(str, "all") == 0 || strcmp(str, "ALL") == 0) {
+        return (iron_u32)IRON_LOG_COMP_ALL;
+    }
     
-    token = strtok_r(buf, ",", &saveptr);
-    while (token) {
+    length = strlen(str);
+    if (length >= sizeof(buf)) {
+        length = sizeof(buf) - 1;
+    }
+
+    memcpy(buf, str, length);
+    buf[length] = '\0';
+    
+    token = buf;
+    while (*token != '\0') {
+        separator = strchr(token, ',');
+        if (separator) {
+            *separator = '\0';
+        }
+
         /* Skip whitespace */
-        while (*token == ' ') token++;
+        while (*token == ' ' || *token == '\t') {
+            token++;
+        }
+
+        end = token + strlen(token);
+        while (end > token && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+        *end = '\0';
         
         for (i = 0; g_component_info[i].name != NULL; i++) {
             if (iron_strcasecmp(token, g_component_info[i].name) == 0) {
@@ -412,10 +443,14 @@ iron_u32 iron_debug_parse_components(const char *str)
             }
         }
         
-        token = strtok_r(NULL, ",", &saveptr);
+        if (!separator) {
+            break;
+        }
+
+        token = separator + 1;
     }
     
-    return result ? result : IRON_LOG_COMP_ALL;
+    return result ? result : (iron_u32)IRON_LOG_COMP_ALL;
 }
 
 void iron_debug_hex_dump(const void *data, iron_size size, iron_u32 bytes_per_line)

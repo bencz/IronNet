@@ -27,6 +27,12 @@ namespace System
         [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern void Exit(int exitCode);
 
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        internal static extern long GetUtcNowTicks();
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        internal static extern long GetLocalNowTicks();
+
         /// <summary>
         /// Gets the fully qualified path of the current working directory
         /// </summary>

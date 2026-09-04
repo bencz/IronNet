@@ -36,10 +36,8 @@ namespace System
         /// <summary>
         /// Requests that the system call the finalizer for the specified object
         /// </summary>
-        public static void ReRegisterForFinalize(object obj)
-        {
-            // TODO: Implement
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern void ReRegisterForFinalize(object obj);
 
         /// <summary>
         /// References the specified object, preventing garbage collection until after this method returns

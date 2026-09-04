@@ -24,7 +24,7 @@ static void print_version(void)
 {
     printf("IronNet CLI Interpreter v%d.%d.%d\n",
            IRONNET_VERSION_MAJOR, IRONNET_VERSION_MINOR, IRONNET_VERSION_PATCH);
-    printf("Pure C89 implementation of ECMA-335 CLI\n");
+    printf("Strict C99 implementation of ECMA-335 CLI\n");
 }
 
 static void print_usage(const char *program)
@@ -220,8 +220,11 @@ static void on_exception(iron_exec_context_t *ctx, iron_exception_t *ex)
 {
     (void)ctx;
     if (ex) {
+        iron_runtime_type_t *exception_type;
+
+        exception_type = IRON_GC_HEADER(ex)->type;
         printf("[EXCEPTION] %s: %p\n",
-               ex->type ? ex->type->name : "Exception",
+               exception_type ? exception_type->name : "Exception",
                ex->message);
     }
 }

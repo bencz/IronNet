@@ -4,12 +4,17 @@
     <OutputType>Library</OutputType>
     <AssemblyName>corlib</AssemblyName>
     <RootNamespace>System</RootNamespace>
+    <NoStdLib>true</NoStdLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
-    <!-- <NoWarn>CS0436;CS0626;CS0114;CS0108</NoWarn> -->
+    <RuntimeMetadataVersion>v4.0.30319</RuntimeMetadataVersion>
+    <NuGetAudit>false</NuGetAudit>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

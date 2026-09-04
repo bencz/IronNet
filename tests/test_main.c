@@ -9,18 +9,23 @@
 
 static int g_tests_run = 0;
 static int g_tests_passed = 0;
+static iron_bool g_current_test_failed = IRON_FALSE;
 
 #define TEST(name) static void test_##name(void)
 #define RUN_TEST(name) do { \
     printf("  Running %s... ", #name); \
     g_tests_run++; \
+    g_current_test_failed = IRON_FALSE; \
     test_##name(); \
-    g_tests_passed++; \
-    printf("PASSED\n"); \
+    if (!g_current_test_failed) { \
+        g_tests_passed++; \
+        printf("PASSED\n"); \
+    } \
 } while(0)
 
 #define ASSERT(cond) do { \
     if (!(cond)) { \
+        g_current_test_failed = IRON_TRUE; \
         printf("FAILED\n    Assertion failed: %s\n    at %s:%d\n", \
                #cond, __FILE__, __LINE__); \
         return; \
@@ -194,6 +199,8 @@ TEST(error_strings)
     ASSERT_STR_EQ(iron_error_str(IRON_OK), "Success");
     ASSERT_STR_EQ(iron_error_str(IRON_ERR_OUT_OF_MEMORY), "Out of memory");
     ASSERT_STR_EQ(iron_error_str(IRON_ERR_FILE_NOT_FOUND), "File not found");
+    ASSERT_STR_EQ(iron_error_str(IRON_ERR_ARGUMENT_NULL), "Argument cannot be null");
+    ASSERT_STR_EQ(iron_error_str(IRON_ERR_ARGUMENT_OUT_OF_RANGE), "Argument is outside the valid range");
 }
 
 TEST(element_types)
@@ -283,6 +290,50 @@ TEST(eval_stack)
  * Threading Tests
  * ============================================================================ */
 
+static volatile iron_i32 g_once_count = 0;
+
+static void once_initializer(void)
+{
+    iron_atomic_inc_i32(&g_once_count);
+}
+
+static void *increment_thread(void *argument)
+{
+    volatile iron_i32 *value;
+
+    value = (volatile iron_i32 *)argument;
+    iron_atomic_inc_i32(value);
+    return argument;
+}
+
+static void *semaphore_post_thread(void *argument)
+{
+    iron_semaphore_t *semaphore;
+
+    semaphore = (iron_semaphore_t *)argument;
+    iron_thread_sleep(10);
+    iron_semaphore_post(semaphore);
+    return argument;
+}
+
+TEST(thread_lifecycle)
+{
+    volatile iron_i32 value;
+    iron_thread_t thread;
+    iron_result_t result;
+    void *thread_result;
+
+    value = 0;
+    result = iron_thread_create_simple(&thread, increment_thread, (void *)&value);
+    ASSERT(IRON_RESULT_OK(result));
+
+    thread_result = NULL;
+    result = iron_thread_join(&thread, &thread_result);
+    ASSERT(IRON_RESULT_OK(result));
+    ASSERT_EQ(thread_result, (void *)&value);
+    ASSERT_EQ(iron_atomic_load_i32(&value), 1);
+}
+
 TEST(mutex)
 {
     iron_mutex_t mutex;
@@ -301,6 +352,104 @@ TEST(mutex)
     iron_mutex_destroy(&mutex);
 }
 
+TEST(recursive_mutex)
+{
+    iron_rmutex_t mutex;
+    iron_result_t result;
+
+    result = iron_rmutex_init(&mutex);
+    ASSERT(IRON_RESULT_OK(result));
+
+    iron_rmutex_lock(&mutex);
+    ASSERT(iron_rmutex_trylock(&mutex));
+    iron_rmutex_unlock(&mutex);
+    iron_rmutex_unlock(&mutex);
+    iron_rmutex_destroy(&mutex);
+}
+
+TEST(read_write_lock)
+{
+    iron_rwlock_t lock;
+    iron_result_t result;
+
+    result = iron_rwlock_init(&lock);
+    ASSERT(IRON_RESULT_OK(result));
+
+    iron_rwlock_rdlock(&lock);
+    ASSERT(!iron_rwlock_trywrlock(&lock));
+    iron_rwlock_unlock(&lock);
+
+    iron_rwlock_wrlock(&lock);
+    ASSERT(!iron_rwlock_tryrdlock(&lock));
+    iron_rwlock_unlock(&lock);
+    iron_rwlock_destroy(&lock);
+}
+
+TEST(semaphore)
+{
+    iron_semaphore_t semaphore;
+    iron_thread_t thread;
+    iron_result_t result;
+
+    result = iron_semaphore_init(&semaphore, 0);
+    ASSERT(IRON_RESULT_OK(result));
+    ASSERT(!iron_semaphore_trywait(&semaphore));
+
+    result = iron_thread_create_simple(&thread, semaphore_post_thread, &semaphore);
+    ASSERT(IRON_RESULT_OK(result));
+    ASSERT(iron_semaphore_timedwait(&semaphore, 1000));
+    ASSERT(IRON_RESULT_OK(iron_thread_join(&thread, NULL)));
+    ASSERT(!iron_semaphore_timedwait(&semaphore, 1));
+    iron_semaphore_destroy(&semaphore);
+}
+
+TEST(event)
+{
+    iron_event_t event;
+    iron_result_t result;
+
+    result = iron_event_init(&event, IRON_TRUE, IRON_FALSE);
+    ASSERT(IRON_RESULT_OK(result));
+    ASSERT(!iron_event_timedwait(&event, 1));
+    iron_event_set(&event);
+    ASSERT(iron_event_timedwait(&event, 1));
+    ASSERT(iron_event_timedwait(&event, 1));
+    iron_event_reset(&event);
+    ASSERT(!iron_event_timedwait(&event, 1));
+    iron_event_destroy(&event);
+
+    result = iron_event_init(&event, IRON_FALSE, IRON_TRUE);
+    ASSERT(IRON_RESULT_OK(result));
+    ASSERT(iron_event_timedwait(&event, 1));
+    ASSERT(!iron_event_timedwait(&event, 1));
+    iron_event_destroy(&event);
+}
+
+TEST(thread_local_storage)
+{
+    iron_tls_key_t key;
+    iron_result_t result;
+    int value;
+
+    value = 42;
+    result = iron_tls_create(&key);
+    ASSERT(IRON_RESULT_OK(result));
+    ASSERT_EQ(iron_tls_get(&key), NULL);
+    iron_tls_set(&key, &value);
+    ASSERT_EQ(iron_tls_get(&key), &value);
+    iron_tls_destroy(&key);
+}
+
+TEST(once)
+{
+    iron_once_t once = IRON_ONCE_INIT;
+
+    g_once_count = 0;
+    iron_once(&once, once_initializer);
+    iron_once(&once, once_initializer);
+    ASSERT_EQ(iron_atomic_load_i32(&g_once_count), 1);
+}
+
 TEST(spinlock)
 {
     iron_spinlock_t lock = IRON_SPINLOCK_INIT;
@@ -316,6 +465,9 @@ TEST(spinlock)
 TEST(atomics)
 {
     volatile iron_i32 val = 0;
+#ifndef IRON_NO_NATIVE_64BIT
+    volatile iron_i64 val64 = 0;
+#endif
     
     iron_atomic_store_i32(&val, 42);
     ASSERT_EQ(iron_atomic_load_i32(&val), 42);
@@ -328,6 +480,14 @@ TEST(atomics)
     
     ASSERT(!iron_atomic_cas_i32(&val, 52, 200)); /* Should fail */
     ASSERT_EQ(iron_atomic_load_i32(&val), 100);
+
+#ifndef IRON_NO_NATIVE_64BIT
+    iron_atomic_store_i64(&val64, 0x100000000LL);
+    ASSERT_EQ(iron_atomic_add_i64(&val64, 5), 0x100000000LL);
+    ASSERT(iron_atomic_cas_i64(&val64, 0x100000005LL, 9));
+    ASSERT_EQ(iron_atomic_exchange_i64(&val64, 12), 9);
+    ASSERT_EQ(iron_atomic_load_i64(&val64), 12);
+#endif
 }
 
 /* ============================================================================
@@ -370,7 +530,14 @@ int main(void)
     printf("\n");
     
     printf("Threading Tests:\n");
+    RUN_TEST(thread_lifecycle);
     RUN_TEST(mutex);
+    RUN_TEST(recursive_mutex);
+    RUN_TEST(read_write_lock);
+    RUN_TEST(semaphore);
+    RUN_TEST(event);
+    RUN_TEST(thread_local_storage);
+    RUN_TEST(once);
     RUN_TEST(spinlock);
     RUN_TEST(atomics);
     printf("\n");

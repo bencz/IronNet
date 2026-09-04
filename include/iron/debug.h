@@ -8,7 +8,7 @@
  * - Runtime enable/disable
  * - File and line information
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_DEBUG_H
@@ -51,7 +51,7 @@ typedef enum iron_log_component {
     IRON_LOG_COMP_CORLIB   = (1 << 6),   /* Corlib internal calls */
     IRON_LOG_COMP_JIT      = (1 << 7),   /* JIT (future) */
     IRON_LOG_COMP_INTEROP  = (1 << 8),   /* P/Invoke interop */
-    IRON_LOG_COMP_ALL      = 0xFFFFFFFF  /* All components */
+    IRON_LOG_COMP_ALL      = 0x000001FF  /* All defined components */
 } iron_log_component_t;
 
 /* ============================================================================

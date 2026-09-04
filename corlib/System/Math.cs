@@ -39,11 +39,21 @@ namespace System
 
         public static long Abs(long value)
         {
+            if (value == long.MinValue)
+            {
+                throw new OverflowException();
+            }
+
             return value < 0 ? -value : value;
         }
 
         public static float Abs(float value)
         {
+            if (value == 0)
+            {
+                return 0;
+            }
+
             return value < 0 ? -value : value;
         }
 
@@ -59,6 +69,19 @@ namespace System
 
         public static double Max(double val1, double val2)
         {
+            if (double.IsNaN(val1))
+            {
+                return val1;
+            }
+            if (double.IsNaN(val2))
+            {
+                return val2;
+            }
+            if (val1 == 0 && val2 == 0)
+            {
+                return IsNegative(val1) ? val2 : val1;
+            }
+
             return val1 > val2 ? val1 : val2;
         }
 
@@ -74,6 +97,19 @@ namespace System
 
         public static double Min(double val1, double val2)
         {
+            if (double.IsNaN(val1))
+            {
+                return val1;
+            }
+            if (double.IsNaN(val2))
+            {
+                return val2;
+            }
+            if (val1 == 0 && val2 == 0)
+            {
+                return IsNegative(val1) ? val1 : val2;
+            }
+
             return val1 < val2 ? val1 : val2;
         }
 
@@ -91,16 +127,40 @@ namespace System
 
         public static int Sign(int value)
         {
-            if (value < 0) return -1;
-            if (value > 0) return 1;
+            if (value < 0)
+            {
+                return -1;
+            }
+            if (value > 0)
+            {
+                return 1;
+            }
+
             return 0;
         }
 
         public static int Sign(double value)
         {
-            if (value < 0) return -1;
-            if (value > 0) return 1;
+            if (double.IsNaN(value))
+            {
+                throw new ArithmeticException("Function does not accept floating point Not-a-Number values.");
+            }
+            if (value < 0)
+            {
+                return -1;
+            }
+            if (value > 0)
+            {
+                return 1;
+            }
+
             return 0;
+        }
+
+        private static unsafe bool IsNegative(double value)
+        {
+            ulong bits = *((ulong*)&value);
+            return (bits & 0x8000000000000000ul) != 0;
         }
     }
 }

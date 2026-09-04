@@ -4,7 +4,7 @@
  * 
  * Supports reading Windows PE files and CLI assemblies
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_PE_H

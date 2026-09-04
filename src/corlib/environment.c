@@ -5,13 +5,6 @@
 
 #include "iron/corlib.h"
 #include <stdlib.h>
-#include <time.h>
-
-#if defined(_WIN32)
-    #include <windows.h>
-#else
-    #include <unistd.h>
-#endif
 
 /* ============================================================================
  * System.Environment Internal Calls
@@ -31,17 +24,49 @@ iron_result_t icall_Environment_get_TickCount(
         return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "TickCount requires result");
     }
     
-#if defined(_WIN32)
-    result->value.i32 = (iron_i32)GetTickCount();
-#else
-    {
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        result->value.i32 = (iron_i32)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
-    }
-#endif
+    result->value.i32 = (iron_i32)iron_platform_monotonic_milliseconds();
     result->type = IRON_VAL_I32;
     
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_Environment_GetUtcNowTicks(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    iron_i64 ticks;
+
+    (void)ctx;
+    (void)args;
+    (void)arg_count;
+    if (!result || !iron_platform_get_utc_ticks(&ticks)) {
+        return IRON_ERROR(IRON_ERR_INVALID_STATE, "Cannot read the UTC system clock");
+    }
+
+    result->value.i64 = ticks;
+    result->type = IRON_VAL_I64;
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_Environment_GetLocalNowTicks(
+    iron_exec_context_t *ctx,
+    iron_stack_value_t *args,
+    iron_u32 arg_count,
+    iron_stack_value_t *result)
+{
+    iron_i64 ticks;
+
+    (void)ctx;
+    (void)args;
+    (void)arg_count;
+    if (!result || !iron_platform_get_local_ticks(&ticks)) {
+        return IRON_ERROR(IRON_ERR_INVALID_STATE, "Cannot read the local system clock");
+    }
+
+    result->value.i64 = ticks;
+    result->type = IRON_VAL_I64;
     return IRON_SUCCESS;
 }
 
@@ -61,6 +86,4 @@ iron_result_t icall_Environment_Exit(
     }
     
     exit(exit_code);
-    
-    return IRON_SUCCESS;
 }

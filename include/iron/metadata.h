@@ -4,7 +4,7 @@
  * 
  * Handles reading metadata streams, tables, and signatures
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_METADATA_H
@@ -125,12 +125,20 @@ typedef struct iron_type_def_row {
     iron_u32 method_list;       /* Index into MethodDef table */
 } iron_type_def_row_t;
 
+typedef struct iron_field_ptr_row {
+    iron_u32 field;
+} iron_field_ptr_row_t;
+
 /* Field table (0x04) */
 typedef struct iron_field_row {
     iron_u16 flags;
     iron_u32 name;              /* String heap index */
     iron_u32 signature;         /* Blob heap index */
 } iron_field_row_t;
+
+typedef struct iron_method_ptr_row {
+    iron_u32 method;
+} iron_method_ptr_row_t;
 
 /* MethodDef table (0x06) */
 typedef struct iron_method_def_row {
@@ -141,6 +149,10 @@ typedef struct iron_method_def_row {
     iron_u32 signature;         /* Blob heap index */
     iron_u32 param_list;        /* Index into Param table */
 } iron_method_def_row_t;
+
+typedef struct iron_param_ptr_row {
+    iron_u32 param;
+} iron_param_ptr_row_t;
 
 /* Param table (0x08) */
 typedef struct iron_param_row {
@@ -177,6 +189,17 @@ typedef struct iron_custom_attribute_row {
     iron_u32 value;             /* Blob heap index */
 } iron_custom_attribute_row_t;
 
+typedef struct iron_field_marshal_row {
+    iron_u32 parent;
+    iron_u32 native_type;
+} iron_field_marshal_row_t;
+
+typedef struct iron_decl_security_row {
+    iron_u16 action;
+    iron_u32 parent;
+    iron_u32 permission_set;
+} iron_decl_security_row_t;
+
 /* ClassLayout table (0x0F) */
 typedef struct iron_class_layout_row {
     iron_u16 packing_size;
@@ -201,6 +224,10 @@ typedef struct iron_event_map_row {
     iron_u32 event_list;        /* Index into Event */
 } iron_event_map_row_t;
 
+typedef struct iron_event_ptr_row {
+    iron_u32 event;
+} iron_event_ptr_row_t;
+
 /* Event table (0x14) */
 typedef struct iron_event_row {
     iron_u16 event_flags;
@@ -213,6 +240,10 @@ typedef struct iron_property_map_row {
     iron_u32 parent;            /* Index into TypeDef */
     iron_u32 property_list;     /* Index into Property */
 } iron_property_map_row_t;
+
+typedef struct iron_property_ptr_row {
+    iron_u32 property;
+} iron_property_ptr_row_t;
 
 /* Property table (0x17) */
 typedef struct iron_property_row {
@@ -259,6 +290,15 @@ typedef struct iron_field_rva_row {
     iron_u32 field;             /* Index into Field */
 } iron_field_rva_row_t;
 
+typedef struct iron_enc_log_row {
+    iron_u32 token;
+    iron_u32 func_code;
+} iron_enc_log_row_t;
+
+typedef struct iron_enc_map_row {
+    iron_u32 token;
+} iron_enc_map_row_t;
+
 /* Assembly table (0x20) */
 typedef struct iron_assembly_row {
     iron_u32 hash_alg_id;
@@ -272,6 +312,16 @@ typedef struct iron_assembly_row {
     iron_u32 culture;           /* String heap index */
 } iron_assembly_row_t;
 
+typedef struct iron_assembly_processor_row {
+    iron_u32 processor;
+} iron_assembly_processor_row_t;
+
+typedef struct iron_assembly_os_row {
+    iron_u32 os_platform_id;
+    iron_u32 os_major_version;
+    iron_u32 os_minor_version;
+} iron_assembly_os_row_t;
+
 /* AssemblyRef table (0x23) */
 typedef struct iron_assembly_ref_row {
     iron_u16 major_version;
@@ -284,6 +334,18 @@ typedef struct iron_assembly_ref_row {
     iron_u32 culture;           /* String heap index */
     iron_u32 hash_value;        /* Blob heap index */
 } iron_assembly_ref_row_t;
+
+typedef struct iron_assembly_ref_processor_row {
+    iron_u32 processor;
+    iron_u32 assembly_ref;
+} iron_assembly_ref_processor_row_t;
+
+typedef struct iron_assembly_ref_os_row {
+    iron_u32 os_platform_id;
+    iron_u32 os_major_version;
+    iron_u32 os_minor_version;
+    iron_u32 assembly_ref;
+} iron_assembly_ref_os_row_t;
 
 /* File table (0x26) */
 typedef struct iron_file_row {
@@ -416,6 +478,12 @@ IRON_API iron_result_t iron_metadata_read_row(const iron_metadata_t *meta,
                                                iron_token_t token,
                                                void *out_row);
 
+/* Resolve the namespace and simple name of a TypeDef or TypeRef token. */
+IRON_API iron_result_t iron_metadata_get_type_name(const iron_metadata_t *meta,
+                                                    iron_token_t token,
+                                                    const char **out_namespace,
+                                                    const char **out_name);
+
 /* Decode coded index */
 IRON_API iron_token_t iron_metadata_decode_coded(const iron_metadata_t *meta,
                                                   iron_coded_index_t type,
@@ -451,6 +519,12 @@ IRON_API iron_result_t iron_sig_read_element_type(iron_sig_reader_t *reader,
 /* Read type def or ref encoded token */
 IRON_API iron_result_t iron_sig_read_type_def_or_ref(iron_sig_reader_t *reader,
                                                       iron_token_t *out);
+
+/* Read a method signature header and leave the reader at the return type. */
+IRON_API iron_result_t iron_sig_read_method_header(iron_sig_reader_t *reader,
+                                                    iron_call_conv_t *out_calling_convention,
+                                                    iron_u32 *out_generic_param_count,
+                                                    iron_u32 *out_param_count);
 
 /* Check if more data available */
 IRON_API iron_bool iron_sig_has_more(const iron_sig_reader_t *reader);

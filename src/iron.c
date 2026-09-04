@@ -21,13 +21,13 @@ static iron_bool g_initialized = IRON_FALSE;
 iron_result_t iron_init(void)
 {
     if (g_initialized) {
-        return (iron_result_t)IRON_SUCCESS;
+        return IRON_SUCCESS;
     }
     
     /* Platform-specific initialization could go here */
     
     g_initialized = IRON_TRUE;
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 void iron_shutdown(void)
@@ -57,11 +57,6 @@ iron_result_t iron_run_assembly(const char *path, int argc, const char **argv,
     iron_exec_context_t *ctx = NULL;
     iron_runtime_method_t *entry_point;
     iron_domain_config_t config;
-    iron_stack_value_t args[1];
-    iron_stack_value_t ret_val;
-    
-    (void)argc;
-    (void)argv;
     
     if (!path || !exit_code) {
         return IRON_ERROR(IRON_ERR_NULL_POINTER, "Invalid parameters");
@@ -113,18 +108,7 @@ iron_result_t iron_run_assembly(const char *path, int argc, const char **argv,
         return result;
     }
     
-    /* Execute entry point */
-    memset(&args[0], 0, sizeof(args[0]));
-    args[0].type = IRON_VAL_OBJ;
-    args[0].value.obj = NULL; /* TODO: Create string[] args */
-    
-    memset(&ret_val, 0, sizeof(ret_val));
-    
-    result = iron_exec_method(ctx, entry_point, args, 1, &ret_val);
-    
-    if (IRON_RESULT_OK(result)) {
-        *exit_code = ret_val.value.i32;
-    }
+    result = iron_exec_entry_point(ctx, entry_point, argv, argc, exit_code);
     
     /* Cleanup */
     iron_exec_destroy(ctx);
@@ -143,11 +127,6 @@ iron_result_t iron_run_assembly_memory(const iron_u8 *data, iron_size size,
     iron_exec_context_t *ctx = NULL;
     iron_runtime_method_t *entry_point;
     iron_domain_config_t config;
-    iron_stack_value_t args[1];
-    iron_stack_value_t ret_val;
-    
-    (void)argc;
-    (void)argv;
     
     if (!data || size == 0 || !exit_code) {
         return IRON_ERROR(IRON_ERR_NULL_POINTER, "Invalid parameters");
@@ -171,7 +150,7 @@ iron_result_t iron_run_assembly_memory(const iron_u8 *data, iron_size size,
     }
     
     /* Load assembly from memory */
-    result = iron_assembly_load_memory(&assembly, domain, data, size);
+    result = iron_domain_load_assembly_memory(domain, data, size, &assembly);
     if (!IRON_RESULT_OK(result)) {
         iron_domain_destroy(domain);
         return result;
@@ -199,18 +178,7 @@ iron_result_t iron_run_assembly_memory(const iron_u8 *data, iron_size size,
         return result;
     }
     
-    /* Execute entry point */
-    memset(&args[0], 0, sizeof(args[0]));
-    args[0].type = IRON_VAL_OBJ;
-    args[0].value.obj = NULL;
-    
-    memset(&ret_val, 0, sizeof(ret_val));
-    
-    result = iron_exec_method(ctx, entry_point, args, 1, &ret_val);
-    
-    if (IRON_RESULT_OK(result)) {
-        *exit_code = ret_val.value.i32;
-    }
+    result = iron_exec_entry_point(ctx, entry_point, argv, argc, exit_code);
     
     /* Cleanup */
     iron_exec_destroy(ctx);

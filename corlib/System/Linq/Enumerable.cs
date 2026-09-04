@@ -6,7 +6,7 @@ namespace System.Linq
     /// <summary>
     /// Provides a minimal set of LINQ extension methods for IEnumerable<T>
     /// </summary>
-    public static class Enumerable
+    public static partial class Enumerable
     {
         /// <summary>
         /// Projects each element of a sequence into a new form.
@@ -301,6 +301,3 @@ namespace System.Linq
         }
     }
 }
-
-/* Func<> and Action<> delegate types are defined in
- * System.Collections.Generic/List.cs (consolidated location) */

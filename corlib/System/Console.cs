@@ -42,8 +42,10 @@ namespace System
         /// <summary>
         /// Writes the text representation of the specified object
         /// </summary>
-        [MethodImpl(MethodImplOptions.InternalCall)]
-        public static extern void WriteLine(object value);
+        public static void WriteLine(object value)
+        {
+            WriteLine(value == null ? "" : value.ToString());
+        }
 
         /// <summary>
         /// Writes the text representation of the specified Boolean value

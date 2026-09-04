@@ -65,11 +65,14 @@ static const char *g_error_messages[] = {
     /* Threading errors */
     "Thread creation failed",
     "Thread join failed",
+    "Operation timed out",
     "Mutex error",
     "Deadlock detected",
     
     /* Argument errors */
     "Invalid argument",
+    "Argument cannot be null",
+    "Argument is outside the valid range",
     
     /* Lookup errors */
     "Not found",
@@ -237,6 +240,7 @@ const char *iron_value_type_name(iron_value_type_t type)
         case IRON_VAL_OBJ:      return "object ref";
         case IRON_VAL_BYREF:    return "byref";
         case IRON_VAL_VALUETYPE: return "valuetype";
+        case IRON_VAL_VOID:     return "void";
         default:                return "unknown";
     }
 }
@@ -280,6 +284,31 @@ const char *iron_element_type_name(iron_element_type_t type)
         case IRON_TYPE_SENTINEL:    return "sentinel";
         case IRON_TYPE_PINNED:      return "pinned";
         default:                    return "unknown";
+    }
+}
+
+const char *iron_element_type_managed_name(iron_element_type_t type)
+{
+    switch (type) {
+        case IRON_TYPE_VOID: return "System.Void";
+        case IRON_TYPE_BOOLEAN: return "System.Boolean";
+        case IRON_TYPE_CHAR: return "System.Char";
+        case IRON_TYPE_I1: return "System.SByte";
+        case IRON_TYPE_U1: return "System.Byte";
+        case IRON_TYPE_I2: return "System.Int16";
+        case IRON_TYPE_U2: return "System.UInt16";
+        case IRON_TYPE_I4: return "System.Int32";
+        case IRON_TYPE_U4: return "System.UInt32";
+        case IRON_TYPE_I8: return "System.Int64";
+        case IRON_TYPE_U8: return "System.UInt64";
+        case IRON_TYPE_R4: return "System.Single";
+        case IRON_TYPE_R8: return "System.Double";
+        case IRON_TYPE_STRING: return "System.String";
+        case IRON_TYPE_OBJECT: return "System.Object";
+        case IRON_TYPE_TYPEDBYREF: return "System.TypedReference";
+        case IRON_TYPE_I: return "System.IntPtr";
+        case IRON_TYPE_U: return "System.UIntPtr";
+        default: return NULL;
     }
 }
 

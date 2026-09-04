@@ -12,6 +12,7 @@ namespace System
         public Exception()
         {
             _message = "Exception of type '" + GetType().FullName + "' was thrown.";
+            _stackTrace = null;
         }
 
         public Exception(string message)
@@ -72,6 +73,44 @@ namespace System
     {
         public InvalidOperationException() : base("Operation is not valid due to the current state of the object.") { }
         public InvalidOperationException(string message) : base(message) { }
+        public InvalidOperationException(string message, Exception innerException) : base(message, innerException) { }
+    }
+
+    public class ObjectDisposedException : InvalidOperationException
+    {
+        private readonly string _objectName;
+
+        public ObjectDisposedException() : base("Cannot access a disposed object.")
+        {
+        }
+
+        public ObjectDisposedException(string objectName) : this(objectName, "Cannot access a disposed object.")
+        {
+        }
+
+        public ObjectDisposedException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+
+        public ObjectDisposedException(string objectName, string message) : base(message)
+        {
+            _objectName = objectName;
+        }
+
+        public override string Message
+        {
+            get
+            {
+                if (_objectName == null || _objectName.Length == 0)
+                {
+                    return base.Message;
+                }
+
+                return base.Message + "\nObject name: '" + _objectName + "'.";
+            }
+        }
+
+        public string ObjectName => _objectName;
     }
 
     public class NotSupportedException : SystemException
@@ -84,6 +123,13 @@ namespace System
     {
         public NotImplementedException() : base("The method or operation is not implemented.") { }
         public NotImplementedException(string message) : base(message) { }
+    }
+
+    public class UnauthorizedAccessException : SystemException
+    {
+        public UnauthorizedAccessException() : base("Attempted to perform an unauthorized operation.") { }
+        public UnauthorizedAccessException(string message) : base(message) { }
+        public UnauthorizedAccessException(string message, Exception innerException) : base(message, innerException) { }
     }
 
     public class NullReferenceException : SystemException
@@ -137,5 +183,109 @@ namespace System
     public class StackOverflowException : SystemException
     {
         public StackOverflowException() : base("Operation caused a stack overflow.") { }
+    }
+
+    public class OperationCanceledException : SystemException
+    {
+        private readonly Threading.CancellationToken _cancellationToken;
+
+        public OperationCanceledException() : this("The operation was canceled.", default(Threading.CancellationToken))
+        {
+        }
+
+        public OperationCanceledException(string message) : this(message, default(Threading.CancellationToken))
+        {
+        }
+
+        public OperationCanceledException(Threading.CancellationToken token) : this("The operation was canceled.", token)
+        {
+        }
+
+        public OperationCanceledException(string message, Threading.CancellationToken token) : base(message)
+        {
+            _cancellationToken = token;
+        }
+
+        public OperationCanceledException(string message, Exception innerException, Threading.CancellationToken token) : base(message, innerException)
+        {
+            _cancellationToken = token;
+        }
+
+        public Threading.CancellationToken CancellationToken => _cancellationToken;
+    }
+
+    public class AggregateException : Exception
+    {
+        private readonly Exception[] _innerExceptions;
+
+        public AggregateException() : this("One or more errors occurred.", new Exception[0])
+        {
+        }
+
+        public AggregateException(params Exception[] innerExceptions) : this("One or more errors occurred.", innerExceptions)
+        {
+        }
+
+        public AggregateException(string message, params Exception[] innerExceptions) : base(message, GetFirstException(innerExceptions))
+        {
+            if (innerExceptions == null)
+            {
+                throw new ArgumentNullException("innerExceptions");
+            }
+
+            _innerExceptions = new Exception[innerExceptions.Length];
+            for (int i = 0; i < innerExceptions.Length; i++)
+            {
+                if (innerExceptions[i] == null)
+                {
+                    throw new ArgumentException("An inner exception cannot be null.");
+                }
+
+                _innerExceptions[i] = innerExceptions[i];
+            }
+        }
+
+        public Exception[] InnerExceptions
+        {
+            get
+            {
+                Exception[] copy = new Exception[_innerExceptions.Length];
+                Array.Copy(_innerExceptions, copy, copy.Length);
+                return copy;
+            }
+        }
+
+        public AggregateException Flatten()
+        {
+            Collections.Generic.List<Exception> flattened = new Collections.Generic.List<Exception>();
+            AddFlattenedExceptions(this, flattened);
+            return new AggregateException(Message, flattened.ToArray());
+        }
+
+        private static Exception GetFirstException(Exception[] exceptions)
+        {
+            if (exceptions == null || exceptions.Length == 0)
+            {
+                return null;
+            }
+
+            return exceptions[0];
+        }
+
+        private static void AddFlattenedExceptions(AggregateException aggregate, Collections.Generic.List<Exception> result)
+        {
+            for (int i = 0; i < aggregate._innerExceptions.Length; i++)
+            {
+                AggregateException nested = aggregate._innerExceptions[i] as AggregateException;
+                if (nested == null)
+                {
+                    result.Add(aggregate._innerExceptions[i]);
+                }
+                else
+                {
+                    AddFlattenedExceptions(nested, result);
+                }
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@
  * IronNet CLR Interpreter
  * types.h - Core type definitions and CLI metadata types
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_TYPES_H
@@ -98,11 +98,14 @@ typedef enum iron_error {
     /* Threading errors */
     IRON_ERR_THREAD_CREATE,
     IRON_ERR_THREAD_JOIN,
+    IRON_ERR_TIMEOUT,
     IRON_ERR_MUTEX_ERROR,
     IRON_ERR_DEADLOCK,
     
     /* Argument errors */
     IRON_ERR_INVALID_ARGUMENT,
+    IRON_ERR_ARGUMENT_NULL,
+    IRON_ERR_ARGUMENT_OUT_OF_RANGE,
     
     /* Lookup errors */
     IRON_ERR_NOT_FOUND,
@@ -135,7 +138,7 @@ typedef struct iron_result {
 
 #define IRON_RESULT_OK(r) ((r).error == IRON_OK)
 
-/* Create success result - use function for C89 compatibility */
+/* Create a success result without relying on a shared mutable object. */
 IRON_INLINE iron_result_t iron_result_ok(void)
 {
     iron_result_t r;
@@ -275,6 +278,7 @@ typedef enum iron_element_type {
 
 /* Element type utilities */
 IRON_API const char *iron_element_type_name(iron_element_type_t type);
+IRON_API const char *iron_element_type_managed_name(iron_element_type_t type);
 IRON_API iron_size iron_element_type_size(iron_element_type_t type);
 IRON_API iron_bool iron_element_type_is_primitive(iron_element_type_t type);
 IRON_API iron_bool iron_element_type_is_reference(iron_element_type_t type);
@@ -505,8 +509,12 @@ typedef union iron_value {
     void *obj;  /* Object reference */
     struct {
         void *ptr;
-        void *type;
+        void *stack_slot;
     } byref;
+    struct {
+        void *ptr;
+        void *type;
+    } typedref;
 } iron_value_t;
 
 /* Value type tag */
@@ -516,9 +524,12 @@ typedef enum iron_value_type {
     IRON_VAL_F32,
     IRON_VAL_F64,
     IRON_VAL_PTR,
+    IRON_VAL_METHOD_PTR,
     IRON_VAL_OBJ,
     IRON_VAL_BYREF,
-    IRON_VAL_VALUETYPE
+    IRON_VAL_TYPEDREF,
+    IRON_VAL_VALUETYPE,
+    IRON_VAL_VOID = 0xFF
 } iron_value_type_t;
 
 /* Tagged value for evaluation stack */

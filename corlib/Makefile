@@ -5,7 +5,7 @@
 SDK_VERSION := $(shell dotnet --version 2>/dev/null)
 SDK_PATH := $(shell dotnet --list-sdks | grep "$(SDK_VERSION)" | sed 's/.*\[\(.*\)\]/\1/')
 CSC := dotnet $(SDK_PATH)/$(SDK_VERSION)/Roslyn/bincore/csc.dll
-CSCFLAGS := -nostdlib -noconfig -target:library -langversion:latest -nullable:disable -unsafe+ -warn:0
+CSCFLAGS := -nostdlib -noconfig -target:library -langversion:latest -nullable:disable -unsafe+ -warn:4 -warnaserror+
 
 # Directories
 BUILD_DIR := ../bin
@@ -36,7 +36,8 @@ $(OUTPUT): $(SOURCES)
 		-langversion:latest \
 		-nullable:disable \
 		-unsafe+ \
-		-warn:0 \
+		-warn:4 \
+		-warnaserror+ \
 		$(SOURCES)
 
 clean:

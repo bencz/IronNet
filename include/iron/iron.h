@@ -2,7 +2,7 @@
  * IronNet CLR Interpreter
  * iron.h - Main header file (includes all components)
  * 
- * Pure C89 compatible CLR interpreter supporting:
+ * Strict C99 CLR interpreter supporting:
  * - Multi-platform (Windows, Linux, macOS, BSD, bare-metal)
  * - Multi-architecture (x86, x64, ARM, ARM64, MIPS, PPC, RISC-V)
  * - Multi-endianness (little-endian, big-endian)

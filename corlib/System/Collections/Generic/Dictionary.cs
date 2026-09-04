@@ -21,6 +21,7 @@ namespace System.Collections.Generic
         private IEqualityComparer<TKey> _comparer;
         private KeyCollection _keys;
         private ValueCollection _values;
+        private int _version;
 
         private const int InitialSize = 3;
 
@@ -83,6 +84,7 @@ namespace System.Collections.Generic
                 _freeList = -1;
                 _count = 0;
                 _freeCount = 0;
+                _version++;
             }
         }
 
@@ -126,6 +128,7 @@ namespace System.Collections.Generic
                         _entries[i].value = default(TValue);
                         _freeList = i;
                         _freeCount++;
+                        _version++;
                         return true;
                     }
                 }
@@ -147,7 +150,7 @@ namespace System.Collections.Generic
 
         private void Initialize(int capacity)
         {
-            int size = GetPrime(capacity);
+            int size = HashHelpers.GetPrime(capacity);
             _buckets = new int[size];
             for (int i = 0; i < _buckets.Length; i++)
                 _buckets[i] = -1;
@@ -190,6 +193,7 @@ namespace System.Collections.Generic
                     if (add)
                         throw new ArgumentException("Key already exists");
                     _entries[i].value = value;
+                    _version++;
                     return;
                 }
             }
@@ -217,11 +221,12 @@ namespace System.Collections.Generic
             _entries[index].key = key;
             _entries[index].value = value;
             _buckets[targetBucket] = index;
+            _version++;
         }
 
         private void Resize()
         {
-            int newSize = GetPrime(_count * 2);
+            int newSize = HashHelpers.ExpandPrime(_count);
             int[] newBuckets = new int[newSize];
             for (int i = 0; i < newBuckets.Length; i++)
                 newBuckets[i] = -1;
@@ -238,17 +243,6 @@ namespace System.Collections.Generic
             }
             _buckets = newBuckets;
             _entries = newEntries;
-        }
-
-        private static int GetPrime(int min)
-        {
-            int[] primes = { 3, 7, 11, 17, 23, 29, 37, 47, 59, 71, 89, 107, 131, 163, 197, 239, 293, 353, 431, 521, 631, 761, 919, 1103, 1327, 1597, 1931, 2333, 2801, 3371, 4049, 4861, 5839, 7013, 8419, 10103, 12143, 14591, 17519, 21023, 25229, 30293, 36353, 43627, 52361, 62851, 75431, 90523, 108631, 130363, 156437, 187751, 225307, 270371, 324449, 389357, 467237, 560689, 672827, 807403, 968897, 1162687, 1395263, 1674319, 2009191, 2411033, 2893249, 3471899, 4166287, 4999559, 5999471, 7199369 };
-            for (int i = 0; i < primes.Length; i++)
-            {
-                if (primes[i] >= min)
-                    return primes[i];
-            }
-            return min;
         }
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
@@ -413,12 +407,14 @@ namespace System.Collections.Generic
             private Dictionary<TKey, TValue> _dictionary;
             private int _index;
             private KeyValuePair<TKey, TValue> _current;
+            private readonly int _version;
 
             internal Enumerator(Dictionary<TKey, TValue> dictionary)
             {
                 _dictionary = dictionary;
                 _index = 0;
                 _current = default;
+                _version = dictionary._version;
             }
 
             public KeyValuePair<TKey, TValue> Current => _current;
@@ -426,6 +422,7 @@ namespace System.Collections.Generic
 
             public bool MoveNext()
             {
+                EnsureUnmodified();
                 while (_index < _dictionary._count)
                 {
                     if (_dictionary._entries[_index].hashCode >= 0)
@@ -444,11 +441,20 @@ namespace System.Collections.Generic
 
             public void Reset()
             {
+                EnsureUnmodified();
                 _index = 0;
                 _current = default;
             }
 
             public void Dispose() { }
+
+            private void EnsureUnmodified()
+            {
+                if (_version != _dictionary._version)
+                {
+                    throw new InvalidOperationException("Collection was modified during enumeration.");
+                }
+            }
         }
 
         private struct DictionaryEnumerator : IDictionaryEnumerator

@@ -26,7 +26,7 @@ iron_result_t icall_GC_Collect(
     iron_gc_collect(&ctx->gc);
 
     if (result) {
-        result->type = 0xFF; /* void return */
+        result->type = IRON_VAL_VOID;
     }
 
     return IRON_SUCCESS;
@@ -65,9 +65,7 @@ iron_result_t icall_GC_SuppressFinalize(
 {
     void *obj;
 
-    (void)ctx;
-
-    if (arg_count < 1) {
+    if (!ctx || arg_count < 1) {
         return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "SuppressFinalize requires object");
     }
 
@@ -76,10 +74,38 @@ iron_result_t icall_GC_SuppressFinalize(
         return IRON_ERROR(IRON_ERR_NULL_REFERENCE, "ArgumentNullException");
     }
 
-    iron_gc_suppress_finalize(obj);
+    if (!iron_domain_is_type_descriptor(ctx->domain, obj)) {
+        iron_gc_suppress_finalize(obj);
+    }
 
     if (result) {
-        result->type = 0xFF; /* void return */
+        result->type = IRON_VAL_VOID;
+    }
+
+    return IRON_SUCCESS;
+}
+
+iron_result_t icall_GC_ReRegisterForFinalize(iron_exec_context_t *ctx,
+                                             iron_stack_value_t *args,
+                                             iron_u32 arg_count,
+                                             iron_stack_value_t *result)
+{
+    void *obj;
+
+    if (!ctx || !args || arg_count < 1) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "ReRegisterForFinalize requires object");
+    }
+
+    obj = args[0].value.obj;
+    if (!obj) {
+        return IRON_ERROR(IRON_ERR_NULL_REFERENCE, "ArgumentNullException");
+    }
+
+    if (!iron_domain_is_type_descriptor(ctx->domain, obj)) {
+        iron_gc_reregister_finalize(obj);
+    }
+    if (result) {
+        result->type = IRON_VAL_VOID;
     }
 
     return IRON_SUCCESS;

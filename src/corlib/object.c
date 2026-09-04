@@ -37,8 +37,6 @@ iron_result_t icall_Object_GetType(
     void *obj;
     iron_runtime_type_t *type;
     
-    (void)ctx;
-    
     if (arg_count < 1 || !result) {
         return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "GetType requires 'this'");
     }
@@ -48,7 +46,10 @@ iron_result_t icall_Object_GetType(
         return IRON_ERROR(IRON_ERR_NULL_REFERENCE, "NullReferenceException");
     }
     
-    type = iron_gc_get_type(obj);
+    type = iron_managed_reference_get_type(ctx->domain, obj);
+    if (!type) {
+        return IRON_ERROR(IRON_ERR_INVALID_CAST, "Object reference is not managed by this execution domain");
+    }
     result->type = IRON_VAL_OBJ;
     result->value.obj = type;
     

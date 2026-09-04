@@ -1,5 +1,12 @@
 namespace System.IO
 {
+    public class IOException : SystemException
+    {
+        public IOException() : base("I/O error occurred.") { }
+        public IOException(string message) : base(message) { }
+        public IOException(string message, Exception innerException) : base(message, innerException) { }
+    }
+
     /// <summary>
     /// Provides a generic view of a sequence of bytes
     /// </summary>
@@ -14,8 +21,29 @@ namespace System.IO
         public abstract long Position { get; set; }
 
         public virtual bool CanTimeout => false;
-        public virtual int ReadTimeout { get; set; }
-        public virtual int WriteTimeout { get; set; }
+        public virtual int ReadTimeout
+        {
+            get
+            {
+                throw new InvalidOperationException("Timeouts are not supported on this stream.");
+            }
+            set
+            {
+                throw new InvalidOperationException("Timeouts are not supported on this stream.");
+            }
+        }
+
+        public virtual int WriteTimeout
+        {
+            get
+            {
+                throw new InvalidOperationException("Timeouts are not supported on this stream.");
+            }
+            set
+            {
+                throw new InvalidOperationException("Timeouts are not supported on this stream.");
+            }
+        }
 
         public abstract int Read(byte[] buffer, int offset, int count);
         public abstract void Write(byte[] buffer, int offset, int count);
@@ -44,9 +72,21 @@ namespace System.IO
         public virtual void CopyTo(Stream destination, int bufferSize)
         {
             if (destination == null)
+            {
                 throw new ArgumentNullException("destination");
+            }
             if (bufferSize <= 0)
+            {
                 throw new ArgumentOutOfRangeException("bufferSize");
+            }
+            if (!CanRead)
+            {
+                throw new NotSupportedException("The source stream does not support reading.");
+            }
+            if (!destination.CanWrite)
+            {
+                throw new NotSupportedException("The destination stream does not support writing.");
+            }
 
             byte[] buffer = new byte[bufferSize];
             int read;
@@ -68,7 +108,27 @@ namespace System.IO
 
         public virtual void Close()
         {
-            Dispose(true);
+            Dispose();
+        }
+
+        protected static void ValidateBufferArguments(byte[] buffer, int offset, int count)
+        {
+            if (buffer == null)
+            {
+                throw new ArgumentNullException("buffer");
+            }
+            if (offset < 0)
+            {
+                throw new ArgumentOutOfRangeException("offset");
+            }
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException("count");
+            }
+            if (offset > buffer.Length || count > buffer.Length - offset)
+            {
+                throw new ArgumentException("Offset and length were out of bounds for the array.");
+            }
         }
 
         private sealed class NullStream : Stream
@@ -77,10 +137,24 @@ namespace System.IO
             public override bool CanSeek => true;
             public override bool CanWrite => true;
             public override long Length => 0;
-            public override long Position { get; set; }
+            public override long Position
+            {
+                get => 0;
+                set
+                {
+                }
+            }
 
-            public override int Read(byte[] buffer, int offset, int count) => 0;
-            public override void Write(byte[] buffer, int offset, int count) { }
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                ValidateBufferArguments(buffer, offset, count);
+                return 0;
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                ValidateBufferArguments(buffer, offset, count);
+            }
             public override long Seek(long offset, SeekOrigin origin) => 0;
             public override void SetLength(long value) { }
             public override void Flush() { }
@@ -108,6 +182,8 @@ namespace System.IO
         private int _capacity;
         private bool _writable;
         private bool _expandable;
+        private bool _exposable;
+        private bool _isOpen;
 
         public MemoryStream() : this(0)
         {
@@ -116,11 +192,16 @@ namespace System.IO
         public MemoryStream(int capacity)
         {
             if (capacity < 0)
+            {
                 throw new ArgumentOutOfRangeException("capacity");
+            }
+
             _buffer = new byte[capacity];
             _capacity = capacity;
             _writable = true;
             _expandable = true;
+            _exposable = true;
+            _isOpen = true;
         }
 
         public MemoryStream(byte[] buffer) : this(buffer, true)
@@ -130,44 +211,78 @@ namespace System.IO
         public MemoryStream(byte[] buffer, bool writable)
         {
             if (buffer == null)
+            {
                 throw new ArgumentNullException("buffer");
+            }
+
             _buffer = buffer;
             _length = buffer.Length;
             _capacity = buffer.Length;
             _writable = writable;
             _expandable = false;
+            _exposable = false;
+            _isOpen = true;
         }
 
-        public override bool CanRead => true;
-        public override bool CanSeek => true;
+        public override bool CanRead => _isOpen;
+        public override bool CanSeek => _isOpen;
         public override bool CanWrite => _writable;
-        public override long Length => _length;
+
+        public override long Length
+        {
+            get
+            {
+                EnsureOpen();
+                return _length;
+            }
+        }
 
         public override long Position
         {
-            get => _position;
+            get
+            {
+                EnsureOpen();
+                return _position;
+            }
             set
             {
-                if (value < 0)
+                if (value < 0 || value > int.MaxValue)
+                {
                     throw new ArgumentOutOfRangeException("value");
+                }
+
+                EnsureOpen();
                 _position = (int)value;
             }
         }
 
         public virtual int Capacity
         {
-            get => _capacity;
+            get
+            {
+                EnsureOpen();
+                return _capacity;
+            }
             set
             {
+                EnsureOpen();
+
                 if (value < _length)
+                {
                     throw new ArgumentOutOfRangeException("value");
+                }
                 if (!_expandable && value != _capacity)
+                {
                     throw new NotSupportedException();
+                }
                 if (value != _capacity)
                 {
                     byte[] newBuffer = new byte[value];
                     if (_length > 0)
+                    {
                         Array.Copy(_buffer, newBuffer, _length);
+                    }
+
                     _buffer = newBuffer;
                     _capacity = value;
                 }
@@ -176,18 +291,18 @@ namespace System.IO
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (buffer == null)
-                throw new ArgumentNullException("buffer");
-            if (offset < 0)
-                throw new ArgumentOutOfRangeException("offset");
-            if (count < 0)
-                throw new ArgumentOutOfRangeException("count");
+            ValidateBufferArguments(buffer, offset, count);
+            EnsureOpen();
 
             int available = _length - _position;
             if (count > available)
+            {
                 count = available;
+            }
             if (count <= 0)
+            {
                 return 0;
+            }
 
             Array.Copy(_buffer, _position, buffer, offset, count);
             _position += count;
@@ -196,24 +311,25 @@ namespace System.IO
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (buffer == null)
-                throw new ArgumentNullException("buffer");
-            if (offset < 0)
-                throw new ArgumentOutOfRangeException("offset");
-            if (count < 0)
-                throw new ArgumentOutOfRangeException("count");
-            if (!_writable)
-                throw new NotSupportedException();
+            ValidateBufferArguments(buffer, offset, count);
+            EnsureOpen();
+            EnsureWritable();
 
-            int newPosition = _position + count;
+            long requiredLength = (long)_position + count;
+            if (requiredLength > int.MaxValue)
+            {
+                throw new IOException("Stream was too long.");
+            }
+
+            int newPosition = (int)requiredLength;
             if (newPosition > _capacity)
             {
-                if (!_expandable)
-                    throw new NotSupportedException();
-                int newCapacity = _capacity * 2;
-                if (newCapacity < newPosition)
-                    newCapacity = newPosition;
-                Capacity = newCapacity;
+                EnsureCapacity(newPosition);
+            }
+
+            if (_position > _length)
+            {
+                Array.Clear(_buffer, _length, _position - _length);
             }
 
             Array.Copy(buffer, offset, _buffer, _position, count);
@@ -224,46 +340,62 @@ namespace System.IO
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            int newPosition;
+            EnsureOpen();
+
+            long newPosition;
             switch (origin)
             {
                 case SeekOrigin.Begin:
-                    newPosition = (int)offset;
+                    newPosition = offset;
                     break;
                 case SeekOrigin.Current:
-                    newPosition = _position + (int)offset;
+                    newPosition = (long)_position + offset;
                     break;
                 case SeekOrigin.End:
-                    newPosition = _length + (int)offset;
+                    newPosition = (long)_length + offset;
                     break;
                 default:
                     throw new ArgumentException("Invalid seek origin");
             }
 
             if (newPosition < 0)
+            {
+                throw new IOException("An attempt was made to move the position before the beginning of the stream.");
+            }
+            if (newPosition > int.MaxValue)
+            {
                 throw new ArgumentOutOfRangeException("offset");
+            }
 
-            _position = newPosition;
+            _position = (int)newPosition;
             return _position;
         }
 
         public override void SetLength(long value)
         {
             if (value < 0 || value > int.MaxValue)
+            {
                 throw new ArgumentOutOfRangeException("value");
-            if (!_writable)
-                throw new NotSupportedException();
+            }
+
+            EnsureOpen();
+            EnsureWritable();
 
             int newLength = (int)value;
             if (newLength > _capacity)
             {
-                if (!_expandable)
-                    throw new NotSupportedException();
-                Capacity = newLength;
+                EnsureCapacity(newLength);
             }
+            else if (newLength > _length)
+            {
+                Array.Clear(_buffer, _length, newLength - _length);
+            }
+
             _length = newLength;
             if (_position > _length)
+            {
                 _position = _length;
+            }
         }
 
         public override void Flush()
@@ -273,13 +405,77 @@ namespace System.IO
         public virtual byte[] ToArray()
         {
             byte[] result = new byte[_length];
-            Array.Copy(_buffer, result, _length);
+            if (_length > 0)
+            {
+                Array.Copy(_buffer, result, _length);
+            }
+
             return result;
         }
 
         public virtual byte[] GetBuffer()
         {
+            if (!_exposable)
+            {
+                throw new UnauthorizedAccessException("MemoryStream's internal buffer cannot be accessed.");
+            }
+
             return _buffer;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _isOpen = false;
+                _writable = false;
+                _expandable = false;
+            }
+        }
+
+        private void EnsureOpen()
+        {
+            if (!_isOpen)
+            {
+                throw new ObjectDisposedException("MemoryStream");
+            }
+        }
+
+        private void EnsureWritable()
+        {
+            if (!_writable)
+            {
+                throw new NotSupportedException("Stream does not support writing.");
+            }
+        }
+
+        private void EnsureCapacity(int value)
+        {
+            if (value <= _capacity)
+            {
+                return;
+            }
+            if (!_expandable)
+            {
+                throw new NotSupportedException("Memory stream is not expandable.");
+            }
+
+            int newCapacity = value;
+            if (newCapacity < 256)
+            {
+                newCapacity = 256;
+            }
+
+            if (_capacity <= int.MaxValue / 2)
+            {
+                int doubledCapacity = _capacity * 2;
+                if (newCapacity < doubledCapacity)
+                {
+                    newCapacity = doubledCapacity;
+                }
+            }
+
+            Capacity = newCapacity;
         }
     }
 }

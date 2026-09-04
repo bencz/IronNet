@@ -2,7 +2,7 @@
  * IronNet CLR Interpreter
  * memory.h - Memory management with arena allocator and vtable-based allocators
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_MEMORY_H
@@ -254,10 +254,10 @@ IRON_API void iron_hashmap_init(iron_hashmap_t *map, iron_allocator_t *alloc,
                                  iron_size key_size, iron_size value_size,
                                  iron_hash_fn hash_fn, iron_key_eq_fn key_eq_fn);
 IRON_API void iron_hashmap_destroy(iron_hashmap_t *map);
-IRON_API iron_bool iron_hashmap_get(iron_hashmap_t *map, const void *key, 
+IRON_API iron_bool iron_hashmap_get(const iron_hashmap_t *map, const void *key,
                                      void *value_out);
-IRON_API void iron_hashmap_set(iron_hashmap_t *map, const void *key, 
-                                const void *value);
+IRON_API iron_bool iron_hashmap_set(iron_hashmap_t *map, const void *key,
+                                     const void *value);
 IRON_API iron_bool iron_hashmap_remove(iron_hashmap_t *map, const void *key);
 IRON_API void iron_hashmap_clear(iron_hashmap_t *map);
 

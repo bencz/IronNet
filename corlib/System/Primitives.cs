@@ -9,18 +9,54 @@ namespace System
     {
         internal IntPtr _value;
         public IntPtr Value => _value;
+
+        internal RuntimeTypeHandle(IntPtr value)
+        {
+            _value = value;
+        }
     }
     
     public struct RuntimeMethodHandle
     {
         internal IntPtr _value;
         public IntPtr Value => _value;
+
+        internal RuntimeMethodHandle(IntPtr value)
+        {
+            _value = value;
+        }
     }
     
     public struct RuntimeFieldHandle
     {
         internal IntPtr _value;
         public IntPtr Value => _value;
+
+        internal RuntimeFieldHandle(IntPtr value)
+        {
+            _value = value;
+        }
+    }
+
+    public struct RuntimeArgumentHandle { }
+
+    public ref struct TypedReference
+    {
+        public static Type GetTargetType(TypedReference value)
+        {
+            return __reftype(value);
+        }
+
+        public override bool Equals(object other)
+        {
+            throw new NotSupportedException("TypedReference cannot be boxed.");
+        }
+
+        public override int GetHashCode()
+        {
+            Type targetType = __reftype(this);
+            return targetType == null ? 0 : targetType.GetHashCode();
+        }
     }
     
     public sealed class ParamArrayAttribute : Attribute
@@ -49,10 +85,8 @@ namespace System.Runtime.CompilerServices
     {
         public static int OffsetToStringData => 0;
         
-        public static void InitializeArray(Array array, RuntimeFieldHandle fldHandle)
-        {
-            // TODO: Implement
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern void InitializeArray(Array array, RuntimeFieldHandle fldHandle);
     }
     
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]

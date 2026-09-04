@@ -4,6 +4,7 @@
  */
 
 #include "iron/corlib.h"
+#include <limits.h>
 #include <math.h>
 
 /* ============================================================================
@@ -22,6 +23,10 @@ iron_result_t icall_Math_Abs_Int32(
         return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Math.Abs requires value");
     }
     
+    if (args[0].value.i32 == INT32_MIN) {
+        return IRON_ERROR(IRON_ERR_ARITHMETIC_OVERFLOW, "Negating the minimum Int32 value causes an overflow");
+    }
+
     result->type = IRON_VAL_I32;
     result->value.i32 = (args[0].value.i32 < 0) ? -args[0].value.i32 : args[0].value.i32;
     
@@ -232,14 +237,36 @@ iron_result_t icall_Math_Round(
     iron_u32 arg_count,
     iron_stack_value_t *result)
 {
+    double value;
+    double integral;
+    double fraction;
+
     (void)ctx;
     
     if (arg_count < 1 || !result) {
         return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Math.Round requires value");
     }
     
+    value = args[0].value.f64;
+    if (!isfinite(value) || value == 0.0) {
+        result->type = IRON_VAL_F64;
+        result->value.f64 = value;
+        return IRON_SUCCESS;
+    }
+
+    integral = floor(value);
+    fraction = value - integral;
+
+    if (fraction > 0.5 || (fraction == 0.5 && fmod(fabs(integral), 2.0) != 0.0)) {
+        integral += 1.0;
+    }
+
+    if (integral == 0.0) {
+        integral = copysign(0.0, value);
+    }
+
     result->type = IRON_VAL_F64;
-    result->value.f64 = round(args[0].value.f64);
+    result->value.f64 = integral;
     
     return IRON_SUCCESS;
 }

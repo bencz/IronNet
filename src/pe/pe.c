@@ -40,7 +40,7 @@ static iron_result_t read_dos_header(const iron_u8 *data, iron_size size,
     dos->e_oeminfo = iron_read_u16_le(data + 38);
     dos->e_lfanew = iron_read_u32_le(data + 60);
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 static iron_result_t read_coff_header(const iron_u8 *data, iron_size size,
@@ -67,7 +67,7 @@ static iron_result_t read_coff_header(const iron_u8 *data, iron_size size,
     coff->size_of_optional_header = iron_read_u16_le(data + offset + 16);
     coff->characteristics = iron_read_u16_le(data + offset + 18);
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 static iron_result_t read_optional_header32(const iron_u8 *data, iron_size size,
@@ -121,7 +121,7 @@ static iron_result_t read_optional_header32(const iron_u8 *data, iron_size size,
         offset += 8;
     }
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 static iron_result_t read_optional_header64(const iron_u8 *data, iron_size size,
@@ -174,7 +174,7 @@ static iron_result_t read_optional_header64(const iron_u8 *data, iron_size size,
         offset += 8;
     }
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 static iron_result_t read_section_header(const iron_u8 *data, iron_size size,
@@ -196,7 +196,7 @@ static iron_result_t read_section_header(const iron_u8 *data, iron_size size,
     section->number_of_line_numbers = iron_read_u16_le(data + offset + 34);
     section->characteristics = iron_read_u32_le(data + offset + 36);
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 static iron_result_t read_cli_header(const iron_u8 *data, iron_size size,
@@ -226,7 +226,7 @@ static iron_result_t read_cli_header(const iron_u8 *data, iron_size size,
     cli->managed_native_header.virtual_address = iron_read_u32_le(data + offset + 64);
     cli->managed_native_header.size = iron_read_u32_le(data + offset + 68);
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 /* ============================================================================
@@ -363,7 +363,7 @@ iron_result_t iron_pe_load(iron_pe_image_t *image, const iron_u8 *data,
         }
     }
     
-    return (iron_result_t)IRON_SUCCESS;
+    return IRON_SUCCESS;
 }
 
 iron_result_t iron_pe_load_file(iron_pe_image_t *image, const char *filename,
@@ -512,17 +512,23 @@ const iron_pe_section_t *iron_pe_section_from_rva(const iron_pe_image_t *image,
 const iron_data_directory_t *iron_pe_get_directory(const iron_pe_image_t *image,
                                                     iron_data_dir_index_t index)
 {
-    if (!image || index >= IRON_DIR_COUNT) return NULL;
+    iron_u32 directory_index;
+
+    if (!image || index < 0 || index >= IRON_DIR_COUNT) {
+        return NULL;
+    }
+
+    directory_index = (iron_u32)index;
     
     if (image->is_pe32plus) {
-        if (index >= image->optional_header.pe64.number_of_rva_and_sizes) {
+        if (directory_index >= image->optional_header.pe64.number_of_rva_and_sizes) {
             return NULL;
         }
-        return &image->optional_header.pe64.data_directories[index];
+        return &image->optional_header.pe64.data_directories[directory_index];
     } else {
-        if (index >= image->optional_header.pe32.number_of_rva_and_sizes) {
+        if (directory_index >= image->optional_header.pe32.number_of_rva_and_sizes) {
             return NULL;
         }
-        return &image->optional_header.pe32.data_directories[index];
+        return &image->optional_header.pe32.data_directories[directory_index];
     }
 }

@@ -50,12 +50,35 @@ int iron_strncmp(const char *a, const char *b, iron_size n)
 
 char *iron_strcpy(char *dst, const char *src)
 {
-    return strcpy(dst, src);
+    char *cursor;
+
+    cursor = dst;
+    while (*src != '\0') {
+        *cursor = *src;
+        cursor++;
+        src++;
+    }
+
+    *cursor = '\0';
+    return dst;
 }
 
 char *iron_strncpy(char *dst, const char *src, iron_size n)
 {
-    return strncpy(dst, src, n);
+    iron_size index;
+
+    index = 0;
+    while (index < n && src[index] != '\0') {
+        dst[index] = src[index];
+        index++;
+    }
+
+    while (index < n) {
+        dst[index] = '\0';
+        index++;
+    }
+
+    return dst;
 }
 
 /* ============================================================================
@@ -767,7 +790,7 @@ void iron_hashmap_destroy(iron_hashmap_t *map)
     map->count = 0;
 }
 
-static void hashmap_resize(iron_hashmap_t *map, iron_size new_capacity)
+static iron_bool hashmap_resize(iron_hashmap_t *map, iron_size new_capacity)
 {
     iron_hashmap_entry_t *old_entries = map->entries;
     iron_size old_capacity = map->capacity;
@@ -777,9 +800,10 @@ static void hashmap_resize(iron_hashmap_t *map, iron_size new_capacity)
         new_capacity * sizeof(iron_hashmap_entry_t));
     if (!map->entries) {
         map->entries = old_entries;
-        return;
+        return IRON_FALSE;
     }
-    
+
+    iron_memset(map->entries, 0, new_capacity * sizeof(iron_hashmap_entry_t));
     map->capacity = new_capacity;
     map->count = 0;
     
@@ -799,9 +823,11 @@ static void hashmap_resize(iron_hashmap_t *map, iron_size new_capacity)
         iron_free(map->allocator, old_entries, 
                   old_capacity * sizeof(iron_hashmap_entry_t));
     }
+
+    return IRON_TRUE;
 }
 
-iron_bool iron_hashmap_get(iron_hashmap_t *map, const void *key, void *value_out)
+iron_bool iron_hashmap_get(const iron_hashmap_t *map, const void *key, void *value_out)
 {
     iron_u32 hash;
     iron_size index;
@@ -836,16 +862,26 @@ iron_bool iron_hashmap_get(iron_hashmap_t *map, const void *key, void *value_out
     return IRON_FALSE;
 }
 
-void iron_hashmap_set(iron_hashmap_t *map, const void *key, const void *value)
+iron_bool iron_hashmap_set(iron_hashmap_t *map, const void *key, const void *value)
 {
     iron_u32 hash;
     iron_size index;
+    void *stored_key;
+    void *stored_value;
+
+    if (!map || !key || !value || !map->allocator || map->key_size == 0 || map->value_size == 0) {
+        return IRON_FALSE;
+    }
     
     /* Resize if needed */
     if (map->capacity == 0) {
-        hashmap_resize(map, HASHMAP_INITIAL_CAPACITY);
+        if (!hashmap_resize(map, HASHMAP_INITIAL_CAPACITY)) {
+            return IRON_FALSE;
+        }
     } else if ((double)map->count / map->capacity >= HASHMAP_LOAD_FACTOR) {
-        hashmap_resize(map, map->capacity * 2);
+        if (map->capacity > (iron_size)-1 / 2 || !hashmap_resize(map, map->capacity * 2)) {
+            return IRON_FALSE;
+        }
     }
     
     hash = map->hash_fn(key, map->key_size);
@@ -863,19 +899,31 @@ void iron_hashmap_set(iron_hashmap_t *map, const void *key, const void *value)
             if (match) {
                 /* Update existing */
                 iron_memcpy(map->entries[index].value, value, map->value_size);
-                return;
+                return IRON_TRUE;
             }
         }
         index = (index + 1) % map->capacity;
     }
     
     /* Insert new */
+    stored_key = iron_alloc(map->allocator, map->key_size);
+    if (!stored_key) {
+        return IRON_FALSE;
+    }
+
+    stored_value = iron_alloc(map->allocator, map->value_size);
+    if (!stored_value) {
+        iron_free(map->allocator, stored_key, map->key_size);
+        return IRON_FALSE;
+    }
+
+    iron_memcpy(stored_key, key, map->key_size);
+    iron_memcpy(stored_value, value, map->value_size);
     map->entries[index].hash = hash;
-    map->entries[index].key = iron_alloc(map->allocator, map->key_size);
-    map->entries[index].value = iron_alloc(map->allocator, map->value_size);
-    iron_memcpy(map->entries[index].key, key, map->key_size);
-    iron_memcpy(map->entries[index].value, value, map->value_size);
+    map->entries[index].key = stored_key;
+    map->entries[index].value = stored_value;
     map->count++;
+    return IRON_TRUE;
 }
 
 iron_bool iron_hashmap_remove(iron_hashmap_t *map, const void *key)
@@ -991,7 +1039,9 @@ const char *iron_intern(iron_interner_t *interner, const char *str, iron_size le
     interned[len] = '\0';
     
     /* Add to map */
-    iron_hashmap_set(&interner->map, &interned, &interned);
+    if (!iron_hashmap_set(&interner->map, &interned, &interned)) {
+        return NULL;
+    }
     
     return interned;
 }

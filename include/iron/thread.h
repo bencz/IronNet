@@ -8,7 +8,7 @@
  * - Thread-local storage
  * - Atomic operations
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_THREAD_H
@@ -58,9 +58,10 @@ typedef struct iron_thread {
 #elif defined(IRON_OS_POSIX)
     pthread_t handle;
 #else
-    void *handle;
+    #error "No IronNet thread backend is available for this platform"
 #endif
     iron_bool joinable;
+    void *platform_data;
 } iron_thread_t;
 
 /* Thread function type */
@@ -85,7 +86,7 @@ typedef struct iron_mutex {
 #elif defined(IRON_OS_POSIX)
     pthread_mutex_t handle;
 #else
-    int lock;
+    #error "No IronNet mutex backend is available for this platform"
 #endif
     iron_bool initialized;
 } iron_mutex_t;
@@ -97,9 +98,7 @@ typedef struct iron_rmutex {
 #elif defined(IRON_OS_POSIX)
     pthread_mutex_t handle;
 #else
-    int lock;
-    unsigned long owner;
-    int count;
+    #error "No IronNet recursive mutex backend is available for this platform"
 #endif
     iron_bool initialized;
 } iron_rmutex_t;
@@ -114,7 +113,7 @@ typedef struct iron_cond {
 #elif defined(IRON_OS_POSIX)
     pthread_cond_t handle;
 #else
-    int dummy;
+    #error "No IronNet condition-variable backend is available for this platform"
 #endif
     iron_bool initialized;
 } iron_cond_t;
@@ -124,14 +123,13 @@ typedef struct iron_cond {
  * ============================================================================ */
 
 typedef struct iron_rwlock {
-#if defined(IRON_OS_WINDOWS)
-    void *handle;
-#elif defined(IRON_OS_POSIX)
-    pthread_rwlock_t handle;
-#else
     iron_mutex_t mutex;
-    int readers;
-#endif
+    iron_cond_t readers_changed;
+    iron_cond_t writers_changed;
+    iron_u32 active_readers;
+    iron_u32 waiting_writers;
+    iron_u32 writer_owner;
+    iron_bool writer_active;
     iron_bool initialized;
 } iron_rwlock_t;
 
@@ -140,15 +138,9 @@ typedef struct iron_rwlock {
  * ============================================================================ */
 
 typedef struct iron_semaphore {
-#if defined(IRON_OS_WINDOWS)
-    void *handle;
-#elif defined(IRON_OS_POSIX) && !defined(IRON_OS_MACOS)
-    void *handle;  /* sem_t* */
-#else
     iron_mutex_t mutex;
     iron_cond_t cond;
-    int count;
-#endif
+    iron_u32 count;
     iron_bool initialized;
 } iron_semaphore_t;
 
@@ -157,14 +149,10 @@ typedef struct iron_semaphore {
  * ============================================================================ */
 
 typedef struct iron_event {
-#if defined(IRON_OS_WINDOWS)
-    void *handle;
-#else
     iron_mutex_t mutex;
     iron_cond_t cond;
     iron_bool signaled;
     iron_bool manual_reset;
-#endif
     iron_bool initialized;
 } iron_event_t;
 
@@ -178,7 +166,7 @@ typedef struct iron_tls_key {
 #elif defined(IRON_OS_POSIX)
     pthread_key_t key;
 #else
-    int key;
+    #error "No IronNet TLS backend is available for this platform"
 #endif
     iron_bool initialized;
 } iron_tls_key_t;
@@ -188,21 +176,10 @@ typedef struct iron_tls_key {
  * ============================================================================ */
 
 typedef struct iron_once {
-#if defined(IRON_OS_WINDOWS)
-    void *handle;
-#elif defined(IRON_OS_POSIX)
-    pthread_once_t handle;
-#else
-    int done;
-    iron_mutex_t mutex;
-#endif
+    volatile iron_i32 state;
 } iron_once_t;
 
-#if defined(IRON_OS_POSIX)
-    #define IRON_ONCE_INIT { PTHREAD_ONCE_INIT }
-#else
-    #define IRON_ONCE_INIT { NULL }
-#endif
+#define IRON_ONCE_INIT { 0 }
 
 /* ============================================================================
  * Thread API

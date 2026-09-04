@@ -3,7 +3,7 @@ namespace System
     /// <summary>
     /// Represents a Boolean (true or false) value
     /// </summary>
-    public struct Boolean
+    public partial struct Boolean
     {
         public static readonly string TrueString = "True";
         public static readonly string FalseString = "False";
@@ -22,7 +22,7 @@ namespace System
     /// <summary>
     /// Represents a Unicode character
     /// </summary>
-    public struct Char
+    public partial struct Char
     {
         public const char MaxValue = (char)0xFFFF;
         public const char MinValue = (char)0x0000;
@@ -83,7 +83,7 @@ namespace System
     /// <summary>
     /// Represents an 8-bit signed integer
     /// </summary>
-    public struct SByte
+    public partial struct SByte
     {
         public const sbyte MaxValue = 127;
         public const sbyte MinValue = -128;
@@ -97,7 +97,7 @@ namespace System
     /// <summary>
     /// Represents an 8-bit unsigned integer
     /// </summary>
-    public struct Byte
+    public partial struct Byte
     {
         public const byte MaxValue = 255;
         public const byte MinValue = 0;
@@ -111,7 +111,7 @@ namespace System
     /// <summary>
     /// Represents a 16-bit signed integer
     /// </summary>
-    public struct Int16
+    public partial struct Int16
     {
         public const short MaxValue = 32767;
         public const short MinValue = -32768;
@@ -125,7 +125,7 @@ namespace System
     /// <summary>
     /// Represents a 16-bit unsigned integer
     /// </summary>
-    public struct UInt16
+    public partial struct UInt16
     {
         public const ushort MaxValue = 65535;
         public const ushort MinValue = 0;
@@ -139,15 +139,13 @@ namespace System
     /// <summary>
     /// Represents a 32-bit signed integer
     /// </summary>
-    public struct Int32
+    public partial struct Int32
     {
         public const int MaxValue = 2147483647;
         public const int MinValue = -2147483648;
 
-        public override string ToString()
-        {
-            return Int32Extensions.ToString(this);
-        }
+        [Runtime.CompilerServices.MethodImpl(Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        public override extern string ToString();
 
         public static int Parse(string s)
         {
@@ -178,7 +176,7 @@ namespace System
     /// <summary>
     /// Represents a 32-bit unsigned integer
     /// </summary>
-    public struct UInt32
+    public partial struct UInt32
     {
         public const uint MaxValue = 4294967295;
         public const uint MinValue = 0;
@@ -192,7 +190,7 @@ namespace System
     /// <summary>
     /// Represents a 64-bit signed integer
     /// </summary>
-    public struct Int64
+    public partial struct Int64
     {
         public const long MaxValue = 9223372036854775807;
         public const long MinValue = -9223372036854775808;
@@ -206,7 +204,7 @@ namespace System
     /// <summary>
     /// Represents a 64-bit unsigned integer
     /// </summary>
-    public struct UInt64
+    public partial struct UInt64
     {
         public const ulong MaxValue = 18446744073709551615;
         public const ulong MinValue = 0;
@@ -220,7 +218,7 @@ namespace System
     /// <summary>
     /// Represents a single-precision floating-point number
     /// </summary>
-    public struct Single
+    public partial struct Single
     {
         public const float MaxValue = 3.40282347E+38f;
         public const float MinValue = -3.40282347E+38f;
@@ -229,21 +227,25 @@ namespace System
         public const float PositiveInfinity = 1.0f / 0.0f;
         public const float NegativeInfinity = -1.0f / 0.0f;
 
-        public static bool IsNaN(float f)
+        public static unsafe bool IsNaN(float value)
         {
-            return f != f;
+            uint bits = *((uint*)&value);
+            return (bits & 0x7FFFFFFFu) > 0x7F800000u;
         }
 
         public static bool IsInfinity(float f)
         {
             return f == PositiveInfinity || f == NegativeInfinity;
         }
+
+        [Runtime.CompilerServices.MethodImpl(Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        public override extern string ToString();
     }
 
     /// <summary>
     /// Represents a double-precision floating-point number
     /// </summary>
-    public struct Double
+    public partial struct Double
     {
         public const double MaxValue = 1.7976931348623157E+308;
         public const double MinValue = -1.7976931348623157E+308;
@@ -252,21 +254,25 @@ namespace System
         public const double PositiveInfinity = 1.0 / 0.0;
         public const double NegativeInfinity = -1.0 / 0.0;
 
-        public static bool IsNaN(double d)
+        public static unsafe bool IsNaN(double value)
         {
-            return d != d;
+            ulong bits = *((ulong*)&value);
+            return (bits & 0x7FFFFFFFFFFFFFFFul) > 0x7FF0000000000000ul;
         }
 
         public static bool IsInfinity(double d)
         {
             return d == PositiveInfinity || d == NegativeInfinity;
         }
+
+        [Runtime.CompilerServices.MethodImpl(Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        public override extern string ToString();
     }
 
     /// <summary>
     /// A platform-specific type for pointer arithmetic
     /// </summary>
-    public struct IntPtr
+    public partial struct IntPtr
     {
         private unsafe void* _value;
 
@@ -318,7 +324,7 @@ namespace System
     /// <summary>
     /// A platform-specific type for pointer arithmetic (unsigned)
     /// </summary>
-    public struct UIntPtr
+    public partial struct UIntPtr
     {
         private unsafe void* _value;
 
@@ -375,23 +381,26 @@ namespace System
         public static string ToString(int value)
         {
             if (value == 0)
+            {
                 return "0";
+            }
 
             bool negative = value < 0;
-            if (negative)
-                value = -value;
+            uint magnitude = negative ? 0u - (uint)value : (uint)value;
 
             char[] buffer = new char[12];
             int pos = 11;
 
-            while (value > 0)
+            while (magnitude > 0)
             {
-                buffer[pos--] = (char)('0' + value % 10);
-                value /= 10;
+                buffer[pos--] = (char)('0' + magnitude % 10);
+                magnitude /= 10;
             }
 
             if (negative)
+            {
                 buffer[pos--] = '-';
+            }
 
             return new string(buffer, pos + 1, 11 - pos);
         }
@@ -399,7 +408,9 @@ namespace System
         public static string ToStringUnsigned(uint value)
         {
             if (value == 0)
+            {
                 return "0";
+            }
 
             char[] buffer = new char[11];
             int pos = 10;
@@ -422,23 +433,26 @@ namespace System
         public static string ToString(long value)
         {
             if (value == 0)
+            {
                 return "0";
+            }
 
             bool negative = value < 0;
-            if (negative)
-                value = -value;
+            ulong magnitude = negative ? 0ul - (ulong)value : (ulong)value;
 
             char[] buffer = new char[21];
             int pos = 20;
 
-            while (value > 0)
+            while (magnitude > 0)
             {
-                buffer[pos--] = (char)('0' + value % 10);
-                value /= 10;
+                buffer[pos--] = (char)('0' + magnitude % 10);
+                magnitude /= 10;
             }
 
             if (negative)
+            {
                 buffer[pos--] = '-';
+            }
 
             return new string(buffer, pos + 1, 20 - pos);
         }
@@ -446,7 +460,9 @@ namespace System
         public static string ToStringUnsigned(ulong value)
         {
             if (value == 0)
+            {
                 return "0";
+            }
 
             char[] buffer = new char[21];
             int pos = 20;

@@ -4,11 +4,11 @@
  * 
  * Supports:
  *   - Architectures: x86, x64, ARM, ARM64, MIPS, PPC, RISC-V, etc.
- *   - Word sizes: 16, 24, 31, 32, 64 bits
+ *   - Word sizes: 32 and 64 bits
  *   - Endianness: Little-endian, Big-endian
- *   - OS: Windows, Linux, macOS, BSD, bare-metal
+ *   - OS: Windows, Linux, macOS, AIX, BSD, bare-metal
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_PLATFORM_H
@@ -25,73 +25,31 @@
 #endif
 
 /* ============================================================================
- * C89 Compatibility - No stdint.h, define our own types
+ * C99 fixed-width and pointer-sized types
  * ============================================================================ */
 
-/* Detect if we have C99+ for stdint.h */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
-    #define IRON_HAS_STDINT 1
-#elif defined(_MSC_VER) && _MSC_VER >= 1600
-    #define IRON_HAS_STDINT 1
-#else
-    #define IRON_HAS_STDINT 0
-#endif
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
-#if IRON_HAS_STDINT
-    #include <stdint.h>
-    #include <stddef.h>
-    typedef int8_t    iron_i8;
-    typedef uint8_t   iron_u8;
-    typedef int16_t   iron_i16;
-    typedef uint16_t  iron_u16;
-    typedef int32_t   iron_i32;
-    typedef uint32_t  iron_u32;
-    typedef int64_t   iron_i64;
-    typedef uint64_t  iron_u64;
-    typedef size_t    iron_size;
-    typedef ptrdiff_t iron_ptrdiff;
-#else
-    /* C89 fallback - platform specific */
-    typedef signed char        iron_i8;
-    typedef unsigned char      iron_u8;
-    typedef signed short       iron_i16;
-    typedef unsigned short     iron_u16;
-    typedef signed long        iron_i32;
-    typedef unsigned long      iron_u32;
-    
-    /* 64-bit types - compiler specific */
-    #if defined(_MSC_VER)
-        typedef __int64          iron_i64;
-        typedef unsigned __int64 iron_u64;
-    #elif defined(__GNUC__) || defined(__clang__)
-        typedef long long          iron_i64;
-        typedef unsigned long long iron_u64;
-    #else
-        /* Fallback: use two 32-bit values */
-        typedef struct { iron_u32 lo; iron_i32 hi; } iron_i64;
-        typedef struct { iron_u32 lo; iron_u32 hi; } iron_u64;
-        #define IRON_NO_NATIVE_64BIT 1
-    #endif
-    
-    typedef unsigned long iron_size;
-    typedef long iron_ptrdiff;
-#endif
+typedef int8_t    iron_i8;
+typedef uint8_t   iron_u8;
+typedef int16_t   iron_i16;
+typedef uint16_t  iron_u16;
+typedef int32_t   iron_i32;
+typedef uint32_t  iron_u32;
+typedef int64_t   iron_i64;
+typedef uint64_t  iron_u64;
+typedef size_t    iron_size;
+typedef ptrdiff_t iron_ptrdiff;
 
 /* Floating point types */
 typedef float  iron_f32;
 typedef double iron_f64;
 
-/* Boolean type for C89 */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
-    #include <stdbool.h>
-    typedef bool iron_bool;
-    #define IRON_TRUE  true
-    #define IRON_FALSE false
-#else
-    typedef int iron_bool;
-    #define IRON_TRUE  1
-    #define IRON_FALSE 0
-#endif
+typedef bool iron_bool;
+#define IRON_TRUE  true
+#define IRON_FALSE false
 
 /* NULL definition */
 #ifndef NULL
@@ -102,50 +60,19 @@ typedef double iron_f64;
  * Architecture Detection
  * ============================================================================ */
 
-/* Word size detection */
-#if defined(__LP64__) || defined(_LP64) || defined(_WIN64) || \
-    defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || \
-    defined(__powerpc64__) || defined(__ppc64__) || defined(__mips64) || \
-    defined(__riscv) && __riscv_xlen == 64
+/* Word size detection is based on the actual C pointer representation. */
+#if UINTPTR_MAX == UINT64_MAX
     #define IRON_WORD_SIZE 64
     #define IRON_ARCH_64BIT 1
-#elif defined(__ILP32__) || defined(_ILP32) || defined(__i386__) || \
-      defined(_M_IX86) || defined(__arm__) || defined(_M_ARM) || \
-      defined(__powerpc__) || defined(__mips__) || \
-      defined(__riscv) && __riscv_xlen == 32
+#elif UINTPTR_MAX == UINT32_MAX
     #define IRON_WORD_SIZE 32
     #define IRON_ARCH_32BIT 1
-#elif defined(__m68k__) || defined(__mc68000__)
-    /* Motorola 68k can be 24-bit address bus */
-    #define IRON_WORD_SIZE 32
-    #define IRON_ARCH_32BIT 1
-    #define IRON_ADDR_SIZE 24
-#elif defined(__AVR__) || defined(__MSP430__) || defined(__Z80__)
-    #define IRON_WORD_SIZE 16
-    #define IRON_ARCH_16BIT 1
-#elif defined(__s390__) && !defined(__s390x__)
-    /* IBM S/390 31-bit mode */
-    #define IRON_WORD_SIZE 31
-    #define IRON_ARCH_31BIT 1
 #else
-    /* Default to pointer size */
-    #define IRON_WORD_SIZE (sizeof(void*) * 8)
-    #if IRON_WORD_SIZE == 64
-        #define IRON_ARCH_64BIT 1
-    #elif IRON_WORD_SIZE == 32
-        #define IRON_ARCH_32BIT 1
-    #else
-        #define IRON_ARCH_16BIT 1
-    #endif
-#endif
-
-/* Address size (may differ from word size) */
-#ifndef IRON_ADDR_SIZE
-    #define IRON_ADDR_SIZE IRON_WORD_SIZE
+    #error "IronNet requires a 32-bit or 64-bit C implementation"
 #endif
 
 /* Pointer size in bytes */
-#define IRON_PTR_SIZE (IRON_ADDR_SIZE / 8)
+#define IRON_PTR_SIZE (IRON_WORD_SIZE / 8)
 
 /* Specific architecture detection */
 #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
@@ -208,6 +135,18 @@ typedef double iron_f64;
     #define IRON_OS_MACOS 1
     #define IRON_OS_POSIX 1
     #define IRON_OS_NAME "macos"
+#elif defined(__ANDROID__)
+    #define IRON_OS_ANDROID 1
+    #define IRON_OS_POSIX 1
+    #define IRON_OS_NAME "android"
+#elif defined(__EMSCRIPTEN__)
+    #define IRON_OS_EMSCRIPTEN 1
+    #define IRON_OS_POSIX 1
+    #define IRON_OS_NAME "emscripten"
+#elif defined(_AIX) || defined(__PASE__)
+    #define IRON_OS_AIX 1
+    #define IRON_OS_POSIX 1
+    #define IRON_OS_NAME "aix"
 #elif defined(__linux__)
     #define IRON_OS_LINUX 1
     #define IRON_OS_POSIX 1
@@ -220,16 +159,8 @@ typedef double iron_f64;
     #define IRON_OS_UNIX 1
     #define IRON_OS_POSIX 1
     #define IRON_OS_NAME "unix"
-#elif defined(__ANDROID__)
-    #define IRON_OS_ANDROID 1
-    #define IRON_OS_POSIX 1
-    #define IRON_OS_NAME "android"
-#elif defined(__EMSCRIPTEN__)
-    #define IRON_OS_EMSCRIPTEN 1
-    #define IRON_OS_NAME "emscripten"
 #else
-    #define IRON_OS_BAREMETAL 1
-    #define IRON_OS_NAME "baremetal"
+    #error "IronNet requires a supported Windows or POSIX platform backend"
 #endif
 
 /* ============================================================================
@@ -249,6 +180,8 @@ typedef enum iron_endian {
     #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
         #define IRON_BIG_ENDIAN 1
     #endif
+#elif defined(__LITTLE_ENDIAN__) || defined(__ARMEL__) || defined(__AARCH64EL__) || defined(__MIPSEL__) || defined(_MIPSEL) || defined(__PPC64LE__)
+    #define IRON_LITTLE_ENDIAN 1
 #elif defined(_WIN32) || defined(IRON_ARCH_X86) || defined(IRON_ARCH_X64) || \
       defined(IRON_ARCH_ARM) || defined(IRON_ARCH_ARM64) || \
       defined(IRON_ARCH_RISCV32) || defined(IRON_ARCH_RISCV64) || \
@@ -275,7 +208,7 @@ iron_endian_t iron_detect_endian(void);
 }
 #endif
 
-/* Byte swap macros - C89 compatible */
+/* Portable byte-swap macros. */
 #define IRON_BSWAP16(x) \
     ((iron_u16)(((iron_u16)(x) >> 8) | ((iron_u16)(x) << 8)))
 
@@ -364,7 +297,7 @@ void iron_write_i64_le(void *ptr, iron_i64 val);
 #endif
 
 /* ============================================================================
- * Compiler Attributes (C89 compatible)
+ * Compiler attributes
  * ============================================================================ */
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -431,7 +364,7 @@ void iron_write_i64_le(void *ptr, iron_i64 val);
     #define IRON_ASSERT(x) ((void)0)
 #endif
 
-/* Static assert for C89 */
+/* Portable compile-time assertion. */
 #define IRON_STATIC_ASSERT(cond, msg) \
     typedef char iron_static_assert_##msg[(cond) ? 1 : -1]
 
@@ -448,12 +381,28 @@ typedef struct iron_platform_info {
     iron_u32 page_size;
 } iron_platform_info_t;
 
+typedef struct iron_calendar_time {
+    iron_i32 year;
+    iron_i32 month;
+    iron_i32 day;
+    iron_i32 hour;
+    iron_i32 minute;
+    iron_i32 second;
+} iron_calendar_time_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 IRON_API const iron_platform_info_t *iron_get_platform_info(void);
 IRON_API void iron_print_platform_info(void);
+IRON_API iron_bool iron_platform_get_local_time(iron_calendar_time_t *result);
+IRON_API iron_bool iron_platform_get_utc_ticks(iron_i64 *result);
+IRON_API iron_bool iron_platform_get_local_ticks(iron_i64 *result);
+IRON_API iron_u64 iron_platform_monotonic_milliseconds(void);
+IRON_API void *iron_platform_alloc_hglobal(iron_size size);
+IRON_API void iron_platform_free_hglobal(void *memory);
+IRON_API iron_i32 iron_platform_get_last_error(void);
 
 #ifdef __cplusplus
 }

@@ -2,7 +2,7 @@
  * IronNet CLR Interpreter
  * opcodes.h - Complete CIL opcode definitions (ECMA-335 Partition III)
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_OPCODES_H

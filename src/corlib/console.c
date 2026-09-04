@@ -68,56 +68,6 @@ iron_result_t icall_Console_WriteLine_Int32(
     return IRON_SUCCESS;
 }
 
-iron_result_t icall_Console_WriteLine_Object(
-    iron_exec_context_t *ctx,
-    iron_stack_value_t *args,
-    iron_u32 arg_count,
-    iron_stack_value_t *result)
-{
-    (void)ctx;
-    (void)result;
-    
-    if (arg_count < 1 || !args[0].value.obj) {
-        printf("\n");
-    } else {
-        switch (args[0].type) {
-            case IRON_VAL_I32:
-                printf("%d\n", args[0].value.i32);
-                break;
-            case IRON_VAL_I64:
-                printf("%lld\n", (long long)args[0].value.i64);
-                break;
-            case IRON_VAL_F32:
-                printf("%f\n", args[0].value.f32);
-                break;
-            case IRON_VAL_F64:
-                printf("%f\n", args[0].value.f64);
-                break;
-            case IRON_VAL_PTR:
-            case IRON_VAL_OBJ:
-                if (args[0].value.obj) {
-                    void *str_obj = args[0].value.obj;
-                    iron_u32 len = iron_string_get_length(str_obj);
-                    iron_u16 *chars = iron_string_get_chars(str_obj);
-                    iron_u32 i;
-                    for (i = 0; i < len; i++) {
-                        putchar((chars[i] < 128) ? (char)chars[i] : '?');
-                    }
-                    printf("\n");
-                } else {
-                    printf("[null]\n");
-                }
-                break;
-            default:
-                printf("[Object@%p]\n", args[0].value.obj);
-                break;
-        }
-    }
-    fflush(stdout);
-    
-    return IRON_SUCCESS;
-}
-
 iron_result_t icall_Console_Write_String(
     iron_exec_context_t *ctx,
     iron_stack_value_t *args,

@@ -16,7 +16,7 @@ TARGETS := $(SOURCES:%.cs=$(BINDIR)/%.exe)
 
 # Common compiler flags
 CSCFLAGS := -nostdlib -noconfig -target:exe -reference:$(CORLIB) \
-            -langversion:latest -nullable:disable -warn:0
+            -langversion:latest -nullable:disable -warn:4 -warnaserror+
 
 .PHONY: all clean run-all help
 
@@ -73,7 +73,7 @@ run-all: $(TARGETS)
 	@for exe in $(TARGETS); do \
 		echo ""; \
 		echo ">>> Running $$exe"; \
-		$(IRONNET) --corlib $(CORLIB) $$exe || true; \
+		$(IRONNET) --corlib $(CORLIB) $$exe; \
 	done
 	@echo ""
 	@echo "=== All tests completed ==="

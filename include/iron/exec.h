@@ -8,7 +8,7 @@
  * - IL interpreter loop
  * - Exception handling
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_EXEC_H
@@ -58,6 +58,7 @@ IRON_API void iron_stack_push_f64(iron_eval_stack_t *stack, iron_f64 value);
 IRON_API void iron_stack_push_ptr(iron_eval_stack_t *stack, void *value);
 IRON_API void iron_stack_push_obj(iron_eval_stack_t *stack, void *obj);
 IRON_API void iron_stack_push_null(iron_eval_stack_t *stack);
+IRON_API iron_bool iron_stack_value_init_default(iron_exec_context_t *ctx, iron_stack_value_t *value, iron_runtime_type_t *type);
 
 /* Pop helpers */
 IRON_API iron_i32 iron_stack_pop_i32(iron_eval_stack_t *stack);
@@ -78,7 +79,8 @@ typedef enum iron_frame_flags {
     IRON_FRAME_FINALLY       = 0x02,  /* Finally block active */
     IRON_FRAME_FILTER        = 0x04,  /* Filter block active */
     IRON_FRAME_TAIL_CALL     = 0x08,  /* Tail call optimization */
-    IRON_FRAME_CONSTRAINED   = 0x10   /* Constrained call prefix */
+    IRON_FRAME_CONSTRAINED   = 0x10,  /* Constrained call prefix */
+    IRON_FRAME_FILTER_REJECTED = 0x20 /* Resume handler search after a false filter */
 } iron_frame_flags_t;
 
 /* Stack frame */
@@ -102,6 +104,12 @@ struct iron_stack_frame {
     
     /* Exception handling */
     iron_u32 exception_handler_index;
+    iron_u32 exception_search_offset;
+    iron_u32 exception_filter_try_length;
+    iron_exception_t *filter_exception;
+    iron_u32 leave_target;
+    iron_u32 leave_search_offset;
+    iron_u32 leave_finally_try_length;
     
     /* Flags and prefixes */
     iron_u32 flags;
@@ -110,6 +118,9 @@ struct iron_stack_frame {
     iron_bool volatile_prefix;              /* For volatile. prefix */
     iron_bool tail_prefix;                  /* For tail. prefix */
     iron_bool readonly_prefix;              /* For readonly. prefix */
+
+    /* Native memory allocated by localloc is valid until this frame returns. */
+    iron_arena_mark_t arena_mark;
     
     /* Previous frame (call stack) */
     iron_stack_frame_t *prev;
@@ -124,12 +135,9 @@ struct iron_stack_frame {
 
 /* Exception object (managed) */
 struct iron_exception {
-    iron_gc_header_t gc;
-    iron_runtime_type_t *type;
     void *message;           /* System.String */
     void *inner_exception;   /* System.Exception */
     void *stack_trace;       /* System.String */
-    iron_i32 hresult;
 };
 
 /* Exception state */
@@ -184,6 +192,15 @@ struct iron_thread_context {
     
     /* Managed thread object */
     void *managed_thread;    /* System.Threading.Thread */
+
+    /* Managed entry point and lifecycle state */
+    iron_runtime_method_t *start_method;
+    void *start_delegate;
+    void *start_parameter;
+    iron_result_t execution_result;
+    iron_bool start_has_parameter;
+    iron_bool native_joined;
+    iron_bool owns_execution_lock;
     
     /* Arena for frame allocations */
     iron_arena_t frame_arena;
@@ -194,13 +211,16 @@ IRON_API iron_result_t iron_thread_create(iron_thread_context_t **out_thread,
                                            iron_exec_context_t *ctx,
                                            iron_runtime_method_t *start_method,
                                            void *parameter);
+IRON_API iron_result_t iron_thread_create_delegate(iron_thread_context_t **out_thread,
+                                                    iron_exec_context_t *ctx,
+                                                    void *managed_thread,
+                                                    void *start_delegate,
+                                                    void *parameter,
+                                                    iron_bool has_parameter);
 IRON_API void iron_thread_destroy(iron_thread_context_t *thread);
 IRON_API iron_result_t iron_thread_ctx_start(iron_thread_context_t *thread);
 IRON_API iron_result_t iron_thread_ctx_join(iron_thread_context_t *thread,
                                              iron_u32 timeout_ms);
-IRON_API void iron_thread_ctx_suspend(iron_thread_context_t *thread);
-IRON_API void iron_thread_ctx_resume(iron_thread_context_t *thread);
-IRON_API void iron_thread_ctx_abort(iron_thread_context_t *thread);
 
 /* ============================================================================
  * Execution Context
@@ -213,6 +233,7 @@ struct iron_exec_context {
     
     /* Domain */
     iron_domain_t *domain;
+    iron_assembly_t *entry_assembly;
     
     /* Threads */
     iron_thread_context_t *main_thread;
@@ -220,12 +241,18 @@ struct iron_exec_context {
     iron_u32 thread_count;
     iron_u32 thread_capacity;
     iron_u32 next_thread_id;
+
+    /* Platform synchronization state, kept opaque outside the execution engine. */
+    void *thread_tls;
+    void *thread_lock;
+    void *execution_lock;
     
     /* Current thread (use iron_exec_get_current_thread) */
     iron_thread_context_t *current_thread;
     
     /* Internal call table */
     iron_hashmap_t internal_calls;
+    void *resolved_internal_methods;
     
     /* GC - uses iron_gc_t from gc.h */
     iron_gc_t gc;
@@ -246,6 +273,11 @@ IRON_API iron_result_t iron_exec_create(iron_exec_context_t **out_ctx,
                                          iron_domain_t *domain);
 IRON_API void iron_exec_destroy(iron_exec_context_t *ctx);
 IRON_API iron_thread_context_t *iron_exec_get_current_thread(iron_exec_context_t *ctx);
+IRON_API iron_thread_context_t *iron_exec_find_managed_thread(iron_exec_context_t *ctx, void *managed_thread);
+IRON_API iron_bool iron_exec_enter_execution(iron_exec_context_t *ctx);
+IRON_API void iron_exec_leave_execution(iron_exec_context_t *ctx, iron_bool acquired);
+IRON_API iron_bool iron_exec_suspend_execution(iron_exec_context_t *ctx);
+IRON_API void iron_exec_resume_execution(iron_exec_context_t *ctx, iron_bool suspended);
 
 /* ============================================================================
  * IL Interpreter
@@ -268,6 +300,11 @@ IRON_API iron_result_t iron_exec_method(iron_exec_context_t *ctx,
                                          iron_stack_value_t *args,
                                          iron_u32 arg_count,
                                          iron_stack_value_t *result);
+IRON_API iron_result_t iron_exec_invoke_delegate(iron_thread_context_t *thread,
+                                                  void *delegate_object,
+                                                  void *parameter,
+                                                  iron_bool has_parameter,
+                                                  iron_stack_value_t *result);
 
 /* Execute a single instruction */
 IRON_API iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread);
@@ -281,6 +318,26 @@ IRON_API iron_result_t iron_exec_entry_point(iron_exec_context_t *ctx,
                                               const char **args,
                                               int argc,
                                               int *exit_code);
+
+/* Resolve and validate managed references, including runtime Type descriptors. */
+IRON_API iron_runtime_type_t *iron_managed_reference_get_type(iron_domain_t *domain,
+                                                               void *object);
+IRON_API iron_bool iron_managed_reference_is_assignable(iron_domain_t *domain,
+                                                         void *object,
+                                                         iron_runtime_type_t *target_type);
+
+/* Convert between typed storage, evaluation-stack values, and boxed objects. */
+IRON_API iron_bool iron_stack_value_load_from_storage(iron_exec_context_t *ctx,
+                                                       iron_stack_value_t *result,
+                                                       const void *storage,
+                                                       iron_runtime_type_t *type);
+IRON_API iron_bool iron_stack_value_store_to_storage(void *owner,
+                                                      void *storage,
+                                                      iron_runtime_type_t *type,
+                                                      const iron_stack_value_t *value);
+IRON_API void *iron_stack_value_box(iron_exec_context_t *ctx,
+                                     iron_runtime_type_t *type,
+                                     const iron_stack_value_t *value);
 
 /* Call method (creates new frame) */
 IRON_API iron_result_t iron_exec_call(iron_thread_context_t *thread,
@@ -309,10 +366,18 @@ IRON_API void *iron_gc_alloc_array(iron_exec_context_t *ctx,
                                     iron_runtime_type_t *element_type,
                                     iron_u32 length);
 
+IRON_API void *iron_gc_alloc_mdarray(iron_exec_context_t *ctx,
+                                      iron_runtime_type_t *array_type,
+                                      const iron_u32 *lengths,
+                                      const iron_i32 *lower_bounds,
+                                      iron_u32 rank);
+
 /* Allocate string */
 IRON_API void *iron_gc_alloc_string(iron_exec_context_t *ctx,
                                      const iron_u16 *chars,
                                      iron_u32 length);
+IRON_API void *iron_gc_alloc_string_utf8(iron_exec_context_t *ctx,
+                                          const char *utf8);
 
 /* Box value type */
 IRON_API void *iron_gc_box(iron_exec_context_t *ctx,
@@ -339,6 +404,7 @@ IRON_API void iron_throw_null_reference(iron_thread_context_t *thread);
 IRON_API void iron_throw_index_out_of_range(iron_thread_context_t *thread);
 IRON_API void iron_throw_invalid_cast(iron_thread_context_t *thread);
 IRON_API void iron_throw_overflow(iron_thread_context_t *thread);
+IRON_API void iron_throw_arithmetic(iron_thread_context_t *thread);
 IRON_API void iron_throw_divide_by_zero(iron_thread_context_t *thread);
 
 /* Find exception handler */
@@ -393,9 +459,10 @@ IRON_API iron_result_t iron_monitor_exit(iron_exec_context_t *ctx, void *obj);
 IRON_API iron_result_t iron_monitor_try_enter(iron_exec_context_t *ctx, void *obj,
                                                iron_u32 timeout_ms, iron_bool *acquired);
 IRON_API iron_result_t iron_monitor_wait(iron_exec_context_t *ctx, void *obj,
-                                          iron_u32 timeout_ms);
+                                          iron_u32 timeout_ms, iron_bool *signaled);
 IRON_API iron_result_t iron_monitor_pulse(iron_exec_context_t *ctx, void *obj);
 IRON_API iron_result_t iron_monitor_pulse_all(iron_exec_context_t *ctx, void *obj);
+IRON_API void iron_monitor_destroy_object(iron_exec_context_t *ctx, void *obj);
 
 #ifdef __cplusplus
 }

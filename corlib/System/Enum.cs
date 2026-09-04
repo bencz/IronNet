@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace System
 {
     /// <summary>
@@ -5,48 +7,63 @@ namespace System
     /// </summary>
     public abstract class Enum : ValueType
     {
-        public override string ToString()
-        {
-            // TODO: Implement proper enum name lookup
-            return GetType().FullName;
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public override extern string ToString();
 
-        public override bool Equals(object obj)
-        {
-            if (obj == null)
-                return false;
-            if (GetType() != obj.GetType())
-                return false;
-            return base.Equals(obj);
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public override extern bool Equals(object obj);
 
-        public override int GetHashCode()
-        {
-            return base.GetHashCode();
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public override extern int GetHashCode();
 
         public static bool IsDefined(Type enumType, object value)
         {
-            // TODO: Implement
-            return false;
+            ValidateEnumType(enumType);
+            if (value == null)
+                throw new ArgumentNullException("value");
+
+            return IsDefinedCore(enumType, value);
         }
 
         public static string GetName(Type enumType, object value)
         {
-            // TODO: Implement
-            return value?.ToString() ?? "";
+            ValidateEnumType(enumType);
+            if (value == null)
+                throw new ArgumentNullException("value");
+
+            return GetNameCore(enumType, value);
         }
 
         public static string[] GetNames(Type enumType)
         {
-            // TODO: Implement
-            return new string[0];
+            ValidateEnumType(enumType);
+            return GetNamesCore(enumType);
         }
 
         public static Array GetValues(Type enumType)
         {
-            // TODO: Implement
-            return null;
+            ValidateEnumType(enumType);
+            return GetValuesCore(enumType);
         }
+
+        private static void ValidateEnumType(Type enumType)
+        {
+            if (enumType == null)
+                throw new ArgumentNullException("enumType");
+            if (!enumType.IsEnum)
+                throw new ArgumentException("Type provided must be an Enum.");
+        }
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        private static extern bool IsDefinedCore(Type enumType, object value);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        private static extern string GetNameCore(Type enumType, object value);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        private static extern string[] GetNamesCore(Type enumType);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        private static extern Array GetValuesCore(Type enumType);
     }
 }

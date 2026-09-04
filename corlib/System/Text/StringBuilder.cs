@@ -320,17 +320,118 @@ namespace System.Text
     /// </summary>
     public class UTF8Encoding : Encoding
     {
+        private const int ReplacementCharacter = 0xFFFD;
+
+        private static bool IsContinuation(byte value)
+        {
+            return (value & 0xC0) == 0x80;
+        }
+
+        private static int DecodeCodePoint(byte[] bytes, ref int index, int end)
+        {
+            int first = bytes[index];
+
+            if (first < 0x80)
+            {
+                index++;
+                return first;
+            }
+
+            if (first >= 0xC2 && first <= 0xDF && index + 1 < end && IsContinuation(bytes[index + 1]))
+            {
+                int codePoint = ((first & 0x1F) << 6) | (bytes[index + 1] & 0x3F);
+                index += 2;
+                return codePoint;
+            }
+
+            if (first >= 0xE0 && first <= 0xEF && index + 2 < end && IsContinuation(bytes[index + 1]) && IsContinuation(bytes[index + 2]))
+            {
+                int second = bytes[index + 1];
+                if ((first != 0xE0 || second >= 0xA0) && (first != 0xED || second < 0xA0))
+                {
+                    int codePoint = ((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (bytes[index + 2] & 0x3F);
+                    index += 3;
+                    return codePoint;
+                }
+            }
+
+            if (first >= 0xF0 && first <= 0xF4 && index + 3 < end && IsContinuation(bytes[index + 1]) && IsContinuation(bytes[index + 2]) && IsContinuation(bytes[index + 3]))
+            {
+                int second = bytes[index + 1];
+                if ((first != 0xF0 || second >= 0x90) && (first != 0xF4 || second <= 0x8F))
+                {
+                    int codePoint = ((first & 0x07) << 18) | ((second & 0x3F) << 12) | ((bytes[index + 2] & 0x3F) << 6) | (bytes[index + 3] & 0x3F);
+                    index += 4;
+                    return codePoint;
+                }
+            }
+
+            index++;
+            return ReplacementCharacter;
+        }
+
+        private static int ReadCodePoint(string value, ref int index)
+        {
+            int first = value[index];
+            if (first >= 0xD800 && first <= 0xDBFF && index + 1 < value.Length)
+            {
+                int second = value[index + 1];
+                if (second >= 0xDC00 && second <= 0xDFFF)
+                {
+                    index++;
+                    return 0x10000 + ((first - 0xD800) << 10) + second - 0xDC00;
+                }
+            }
+
+            if (first >= 0xD800 && first <= 0xDFFF)
+                return ReplacementCharacter;
+
+            return first;
+        }
+
+        private static int EncodedSize(int codePoint)
+        {
+            if (codePoint < 0x80)
+                return 1;
+            if (codePoint < 0x800)
+                return 2;
+            if (codePoint < 0x10000)
+                return 3;
+            return 4;
+        }
+
         public override byte[] GetBytes(string s)
         {
             if (s == null)
                 throw new ArgumentNullException("s");
-            
-            // Simple ASCII-only implementation for now
-            byte[] result = new byte[s.Length];
+
+            byte[] result = new byte[GetByteCount(s)];
+            int output = 0;
             for (int i = 0; i < s.Length; i++)
             {
-                char c = s[i];
-                result[i] = c < 128 ? (byte)c : (byte)'?';
+                int codePoint = ReadCodePoint(s, ref i);
+                if (codePoint < 0x80)
+                {
+                    result[output++] = (byte)codePoint;
+                }
+                else if (codePoint < 0x800)
+                {
+                    result[output++] = (byte)(0xC0 | (codePoint >> 6));
+                    result[output++] = (byte)(0x80 | (codePoint & 0x3F));
+                }
+                else if (codePoint < 0x10000)
+                {
+                    result[output++] = (byte)(0xE0 | (codePoint >> 12));
+                    result[output++] = (byte)(0x80 | ((codePoint >> 6) & 0x3F));
+                    result[output++] = (byte)(0x80 | (codePoint & 0x3F));
+                }
+                else
+                {
+                    result[output++] = (byte)(0xF0 | (codePoint >> 18));
+                    result[output++] = (byte)(0x80 | ((codePoint >> 12) & 0x3F));
+                    result[output++] = (byte)(0x80 | ((codePoint >> 6) & 0x3F));
+                    result[output++] = (byte)(0x80 | (codePoint & 0x3F));
+                }
             }
             return result;
         }
@@ -346,23 +447,68 @@ namespace System.Text
         {
             if (bytes == null)
                 throw new ArgumentNullException("bytes");
-            
-            char[] chars = new char[count];
-            for (int i = 0; i < count; i++)
+            if (index < 0)
+                throw new ArgumentOutOfRangeException("index");
+            if (count < 0)
+                throw new ArgumentOutOfRangeException("count");
+            if (index > bytes.Length - count)
+                throw new ArgumentOutOfRangeException("count");
+
+            int end = index + count;
+            int scan = index;
+            int characterCount = 0;
+            while (scan < end)
             {
-                chars[i] = (char)bytes[index + i];
+                int codePoint = DecodeCodePoint(bytes, ref scan, end);
+                characterCount += codePoint < 0x10000 ? 1 : 2;
+            }
+
+            char[] chars = new char[characterCount];
+            int output = 0;
+            while (index < end)
+            {
+                int codePoint = DecodeCodePoint(bytes, ref index, end);
+                if (codePoint < 0x10000)
+                {
+                    chars[output++] = (char)codePoint;
+                }
+                else
+                {
+                    codePoint -= 0x10000;
+                    chars[output++] = (char)(0xD800 + (codePoint >> 10));
+                    chars[output++] = (char)(0xDC00 + (codePoint & 0x3FF));
+                }
             }
             return new string(chars);
         }
 
         public override int GetByteCount(string s)
         {
-            return s?.Length ?? 0;
+            if (s == null)
+                throw new ArgumentNullException("s");
+
+            int byteCount = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                int codePoint = ReadCodePoint(s, ref i);
+                byteCount += EncodedSize(codePoint);
+            }
+            return byteCount;
         }
 
         public override int GetCharCount(byte[] bytes)
         {
-            return bytes?.Length ?? 0;
+            if (bytes == null)
+                throw new ArgumentNullException("bytes");
+
+            int index = 0;
+            int characterCount = 0;
+            while (index < bytes.Length)
+            {
+                int codePoint = DecodeCodePoint(bytes, ref index, bytes.Length);
+                characterCount += codePoint < 0x10000 ? 1 : 2;
+            }
+            return characterCount;
         }
     }
 
@@ -396,6 +542,12 @@ namespace System.Text
         {
             if (bytes == null)
                 throw new ArgumentNullException("bytes");
+            if (index < 0)
+                throw new ArgumentOutOfRangeException("index");
+            if (count < 0)
+                throw new ArgumentOutOfRangeException("count");
+            if (index > bytes.Length - count)
+                throw new ArgumentOutOfRangeException("count");
             
             char[] chars = new char[count];
             for (int i = 0; i < count; i++)
@@ -407,12 +559,16 @@ namespace System.Text
 
         public override int GetByteCount(string s)
         {
-            return s?.Length ?? 0;
+            if (s == null)
+                throw new ArgumentNullException("s");
+            return s.Length;
         }
 
         public override int GetCharCount(byte[] bytes)
         {
-            return bytes?.Length ?? 0;
+            if (bytes == null)
+                throw new ArgumentNullException("bytes");
+            return bytes.Length;
         }
     }
 }

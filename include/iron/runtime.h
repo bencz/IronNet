@@ -7,7 +7,7 @@
  * - Methods, Fields, Properties, Events
  * - Assemblies and Modules
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_RUNTIME_H
@@ -59,7 +59,9 @@ struct iron_domain {
     
     /* Type cache */
     iron_hashmap_t type_cache;        /* Full name -> type */
+    iron_hashmap_t type_descriptors;  /* Descriptor address -> membership */
     iron_hashmap_t generic_inst_cache; /* Generic instantiation cache */
+    iron_hashmap_t generic_method_cache; /* Generic method instantiation cache */
     
     /* String interner */
     iron_interner_t interner;
@@ -106,10 +108,16 @@ IRON_API void iron_domain_add_search_path(iron_domain_t *domain, const char *pat
 IRON_API iron_result_t iron_domain_load_assembly(iron_domain_t *domain,
                                                   const char *path,
                                                   iron_assembly_t **out_assembly);
+
+IRON_API iron_result_t iron_domain_load_assembly_memory(iron_domain_t *domain,
+                                                         const iron_u8 *data,
+                                                         iron_size size,
+                                                         iron_assembly_t **out_assembly);
 IRON_API iron_assembly_t *iron_domain_find_assembly(iron_domain_t *domain,
                                                      const char *name);
 IRON_API iron_runtime_type_t *iron_domain_find_type(iron_domain_t *domain,
                                                      const char *full_name);
+IRON_API iron_bool iron_domain_is_type_descriptor(const iron_domain_t *domain, const void *pointer);
 
 /* ============================================================================
  * Assembly
@@ -126,6 +134,7 @@ struct iron_assembly {
     
     /* Assembly info */
     const char *name;
+    const char *location;
     const char *culture;
     iron_u16 major_version;
     iron_u16 minor_version;
@@ -134,6 +143,7 @@ struct iron_assembly {
     iron_u32 flags;
     const iron_u8 *public_key;
     iron_u32 public_key_size;
+    void *managed_object;
     
     /* Modules */
     iron_module_t *module;  /* Main module */
@@ -142,11 +152,17 @@ struct iron_assembly {
     iron_assembly_t **references;
     iron_u32 reference_count;
     
-    /* Types and methods cache */
+    /* Metadata object caches */
     iron_runtime_type_t *types;
     iron_u32 type_count;
     iron_runtime_method_t *methods;
     iron_u32 method_count;
+    iron_runtime_field_t *fields;
+    iron_u32 field_count;
+    iron_runtime_property_t *properties;
+    iron_u32 property_count;
+    iron_runtime_event_t *events;
+    iron_u32 event_count;
     
     /* Entry point */
     iron_runtime_method_t *entry_point;
@@ -231,6 +247,7 @@ struct iron_runtime_type {
     iron_u32 instance_size;
     iron_u32 alignment;
     iron_u32 packing_size;
+    iron_u32 metadata_size;
     iron_bool layout_computed;
     
     /* Hierarchy */
@@ -239,6 +256,7 @@ struct iron_runtime_type {
     iron_u32 interface_count;
     iron_runtime_type_t *declaring_type;  /* For nested types */
     iron_runtime_type_t *element;         /* For arrays, pointers, byrefs */
+    iron_u32 array_rank;                  /* Zero for non-arrays */
     
     /* Members */
     iron_runtime_field_t **fields;
@@ -260,6 +278,8 @@ struct iron_runtime_type {
     iron_runtime_type_t *generic_definition;  /* For instantiated types */
     iron_runtime_type_t **generic_args;       /* For instantiated types */
     iron_u32 generic_arg_count;
+    iron_u32 generic_parameter_position;
+    iron_runtime_method_t *declaring_method;  /* For method generic parameters */
     
     /* VTable */
     iron_runtime_method_t **vtable;
@@ -275,6 +295,7 @@ struct iron_runtime_type {
     /* Static fields storage */
     void *static_data;
     iron_u32 static_data_size;
+    iron_bool static_initializing;
     iron_bool static_initialized;
     
     /* Type initializer (.cctor) */
@@ -287,6 +308,9 @@ IRON_API iron_runtime_type_t *iron_type_resolve_token(iron_module_t *module,
 IRON_API iron_runtime_type_t *iron_type_make_array(iron_domain_t *domain,
                                                     iron_runtime_type_t *element,
                                                     iron_u32 rank);
+IRON_API iron_runtime_type_t *iron_type_make_mdarray(iron_domain_t *domain,
+                                                      iron_runtime_type_t *element,
+                                                      iron_u32 rank);
 IRON_API iron_runtime_type_t *iron_type_make_pointer(iron_domain_t *domain,
                                                       iron_runtime_type_t *element);
 IRON_API iron_runtime_type_t *iron_type_make_byref(iron_domain_t *domain,
@@ -295,11 +319,24 @@ IRON_API iron_runtime_type_t *iron_type_make_generic(iron_domain_t *domain,
                                                       iron_runtime_type_t *definition,
                                                       iron_runtime_type_t **args,
                                                       iron_u32 arg_count);
+IRON_API iron_result_t iron_type_validate_generic_arguments(iron_runtime_type_t *definition,
+                                                             iron_runtime_type_t **args,
+                                                             iron_u32 arg_count);
+IRON_API iron_result_t iron_generic_parameter_get_constraints(iron_runtime_type_t *parameter,
+                                                               iron_allocator_t *allocator,
+                                                               iron_runtime_type_t ***constraints,
+                                                               iron_u32 *constraint_count);
+IRON_API iron_bool iron_type_is_managed_reference(const iron_runtime_type_t *type);
+IRON_API iron_bool iron_type_is_assignable_to(iron_runtime_type_t *source, iron_runtime_type_t *target);
+IRON_API iron_bool iron_type_contains_generic_parameters(const iron_runtime_type_t *type);
+IRON_API iron_size iron_type_storage_size(const iron_runtime_type_t *type);
 IRON_API iron_result_t iron_type_compute_layout(iron_runtime_type_t *type);
 IRON_API iron_result_t iron_type_init_static(iron_runtime_type_t *type,
                                               struct iron_exec_context *ctx);
 IRON_API iron_runtime_method_t *iron_type_find_method(iron_runtime_type_t *type,
                                                        const char *name);
+IRON_API iron_runtime_field_t *iron_type_find_instance_field(iron_runtime_type_t *type,
+                                                              const char *name);
 
 /* ============================================================================
  * Runtime Method
@@ -338,6 +375,8 @@ struct iron_runtime_method {
     iron_runtime_type_t *return_type;
     iron_runtime_param_t **params;
     iron_u32 param_count;
+    iron_bool signature_loading;
+    iron_bool signature_loaded;
     
     /* Generics */
     iron_bool is_generic_definition;
@@ -376,6 +415,10 @@ IRON_API iron_runtime_method_t *iron_method_make_generic(iron_domain_t *domain,
                                                           iron_runtime_method_t *definition,
                                                           iron_runtime_type_t **args,
                                                           iron_u32 arg_count);
+IRON_API iron_result_t iron_method_validate_generic_arguments(iron_runtime_method_t *definition,
+                                                               iron_runtime_type_t **args,
+                                                               iron_u32 arg_count);
+IRON_API iron_result_t iron_method_load_signature(iron_runtime_method_t *method);
 IRON_API iron_result_t iron_method_load_body(iron_runtime_method_t *method);
 
 /* ============================================================================
@@ -397,6 +440,8 @@ struct iron_runtime_field {
     
     /* Type */
     iron_runtime_type_t *field_type;
+    iron_element_type_t element_type;
+    iron_u32 generic_param_index;
     
     /* Layout */
     iron_u32 offset;  /* Offset in instance or static data */
@@ -404,7 +449,10 @@ struct iron_runtime_field {
     
     /* Constant value (for literal fields) */
     iron_bool has_constant;
+    iron_element_type_t constant_type;
     iron_value_t constant_value;
+    const iron_u8 *constant_data;
+    iron_u32 constant_data_size;
     
     /* RVA data (for fields with RVA) */
     const iron_u8 *rva_data;
@@ -437,7 +485,10 @@ struct iron_runtime_param {
     
     /* Default value */
     iron_bool has_default;
+    iron_element_type_t default_type;
     iron_value_t default_value;
+    const iron_u8 *default_data;
+    iron_u32 default_data_size;
 };
 
 /* ============================================================================
@@ -459,6 +510,8 @@ struct iron_runtime_property {
     
     /* Type */
     iron_runtime_type_t *property_type;
+    iron_bool signature_loading;
+    iron_bool signature_loaded;
     
     /* Accessors */
     iron_runtime_method_t *getter;
@@ -468,6 +521,9 @@ struct iron_runtime_property {
     iron_runtime_param_t **index_params;
     iron_u32 index_param_count;
 };
+
+IRON_API iron_runtime_property_t *iron_property_resolve_token(iron_module_t *module, iron_token_t token);
+IRON_API iron_result_t iron_property_load_signature(iron_runtime_property_t *property);
 
 /* ============================================================================
  * Runtime Event
@@ -488,12 +544,15 @@ struct iron_runtime_event {
     
     /* Type */
     iron_runtime_type_t *event_type;
+    iron_token_t event_type_token;
     
     /* Accessors */
     iron_runtime_method_t *add_method;
     iron_runtime_method_t *remove_method;
     iron_runtime_method_t *raise_method;
 };
+
+IRON_API iron_runtime_event_t *iron_event_resolve_token(iron_module_t *module, iron_token_t token);
 
 /* ============================================================================
  * Generic Instantiation Cache
@@ -503,6 +562,12 @@ struct iron_generic_inst {
     iron_runtime_type_t **args;
     iron_u32 arg_count;
     iron_u32 hash;
+};
+
+struct iron_generic_method_inst {
+    iron_runtime_method_t *definition;
+    iron_runtime_type_t **args;
+    iron_u32 arg_count;
 };
 
 IRON_API iron_u32 iron_generic_inst_hash(const iron_generic_inst_t *inst);

@@ -5,7 +5,7 @@ namespace System
     /// <summary>
     /// Represents text as a sequence of UTF-16 code units
     /// </summary>
-    public sealed class String
+    public sealed partial class String
     {
         /// <summary>
         /// Represents the empty string
@@ -22,15 +22,11 @@ namespace System
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern String(char[] value, int startIndex, int length);
 
-        public unsafe String(char* value)
-        {
-            // Internal call implementation
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public unsafe extern String(char* value);
 
-        public unsafe String(char* value, int startIndex, int length)
-        {
-            // Internal call implementation
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public unsafe extern String(char* value, int startIndex, int length);
 
         public char[] ToCharArray()
         {

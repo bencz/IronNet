@@ -2,12 +2,12 @@
  * IronNet CLR Interpreter
  * vtable.h - Virtual table infrastructure for polymorphic types
  * 
- * Provides C89 compatible vtable system for:
+ * Provides a C99-compatible vtable system for:
  * - Runtime type information
  * - Object polymorphism
  * - Visitor pattern support
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_VTABLE_H
@@ -328,11 +328,10 @@ typedef enum iron_gc_flags {
 typedef struct iron_gc_header {
     iron_runtime_type_t *type;      /* Runtime type */
     iron_u32 flags;                  /* GC flags */
-    iron_u32 size;                   /* Object size */
+    iron_size size;                  /* Object payload size */
     iron_u32 mark;                   /* Mark generation */
     struct iron_gc_header *next;     /* Next in allocation list */
-    iron_u32 lock_count;             /* Monitor lock count */
-    void *lock_owner;                /* Thread owning lock */
+    void *sync_block;                /* Lazily allocated object monitor */
 } iron_gc_header_t;
 
 /* Get GC header from object pointer */

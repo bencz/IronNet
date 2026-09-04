@@ -247,8 +247,10 @@ namespace System.Runtime.InteropServices
     {
         public static int SizeOf(Type t)
         {
-            // TODO: Implement
-            return 0;
+            if (t == null)
+                throw new ArgumentNullException("t");
+
+            return SizeOfCore(t);
         }
 
         public static int SizeOf<T>()
@@ -258,52 +260,116 @@ namespace System.Runtime.InteropServices
 
         public static IntPtr AllocHGlobal(int cb)
         {
-            // TODO: Implement
-            return IntPtr.Zero;
+            if (cb < 0)
+                throw new OutOfMemoryException();
+
+            IntPtr allocation = AllocHGlobalCore(cb);
+            if (allocation == IntPtr.Zero)
+                throw new OutOfMemoryException();
+
+            return allocation;
         }
 
-        public static void FreeHGlobal(IntPtr hglobal)
-        {
-            // TODO: Implement
-        }
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        public static extern void FreeHGlobal(IntPtr hglobal);
 
         public static void Copy(byte[] source, int startIndex, IntPtr destination, int length)
         {
-            // TODO: Implement
+            if (source == null)
+                throw new ArgumentNullException("source");
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException("startIndex");
+            if (length < 0)
+                throw new ArgumentOutOfRangeException("length");
+            if (startIndex > source.Length - length)
+                throw new ArgumentException("The source array does not contain the requested range.");
+            if (destination == IntPtr.Zero && length != 0)
+                throw new ArgumentNullException("destination");
+
+            CopyToNative(source, startIndex, destination, length);
         }
 
         public static void Copy(IntPtr source, byte[] destination, int startIndex, int length)
         {
-            // TODO: Implement
+            if (destination == null)
+                throw new ArgumentNullException("destination");
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException("startIndex");
+            if (length < 0)
+                throw new ArgumentOutOfRangeException("length");
+            if (startIndex > destination.Length - length)
+                throw new ArgumentException("The destination array does not contain the requested range.");
+            if (source == IntPtr.Zero && length != 0)
+                throw new ArgumentNullException("source");
+
+            CopyFromNative(source, destination, startIndex, length);
         }
 
         public static string PtrToStringAnsi(IntPtr ptr)
         {
-            // TODO: Implement
-            return null;
+            if (ptr == IntPtr.Zero)
+                return null;
+
+            return PtrToStringAnsiCore(ptr);
         }
 
         public static string PtrToStringUni(IntPtr ptr)
         {
-            // TODO: Implement
-            return null;
+            if (ptr == IntPtr.Zero)
+                return null;
+
+            return PtrToStringUniCore(ptr);
         }
 
         public static IntPtr StringToHGlobalAnsi(string s)
         {
-            // TODO: Implement
-            return IntPtr.Zero;
+            if (s == null)
+                return IntPtr.Zero;
+
+            IntPtr allocation = StringToHGlobalAnsiCore(s);
+            if (allocation == IntPtr.Zero)
+                throw new OutOfMemoryException();
+
+            return allocation;
         }
 
         public static IntPtr StringToHGlobalUni(string s)
         {
-            // TODO: Implement
-            return IntPtr.Zero;
+            if (s == null)
+                return IntPtr.Zero;
+
+            IntPtr allocation = StringToHGlobalUniCore(s);
+            if (allocation == IntPtr.Zero)
+                throw new OutOfMemoryException();
+
+            return allocation;
         }
 
-        public static int GetLastWin32Error()
-        {
-            return 0;
-        }
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        public static extern int GetLastWin32Error();
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern int SizeOfCore(Type t);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern IntPtr AllocHGlobalCore(int cb);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern void CopyToNative(byte[] source, int startIndex, IntPtr destination, int length);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern void CopyFromNative(IntPtr source, byte[] destination, int startIndex, int length);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern string PtrToStringAnsiCore(IntPtr ptr);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern string PtrToStringUniCore(IntPtr ptr);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern IntPtr StringToHGlobalAnsiCore(string s);
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.InternalCall)]
+        private static extern IntPtr StringToHGlobalUniCore(string s);
     }
 }

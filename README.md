@@ -4,7 +4,7 @@ IronNet is a pure C99 implementation of a Common Language Infrastructure (CLI) i
 
 ## Features
 
-- **Pure C99**: No C99 or later features, maximum portability
+- **Strict C99**: Portable C99 core with platform backends isolated behind stable interfaces
 - **Multi-platform**: Windows, Linux, macOS, BSD, and bare-metal support
 - **Multi-architecture**: x86, x64, ARM, ARM64, MIPS, PowerPC, RISC-V
 - **Multi-endianness**: Little-endian and big-endian support
@@ -18,7 +18,7 @@ IronNet is a pure C99 implementation of a Common Language Infrastructure (CLI) i
 
 ### Prerequisites
 
-- C89-compatible compiler (GCC, Clang, MSVC)
+- C99-compatible compiler (GCC, Clang, IBM Open XL C/C++, or MSVC)
 - Make (GNU Make recommended)
 
 ### Build Commands
@@ -149,21 +149,23 @@ Platform-independent threading primitives:
 ### Implemented
 - [x] PE/COFF file parsing
 - [x] CLI metadata reading
-- [x] Basic IL interpretation
+- [x] IL interpretation with checked arithmetic, indirect access, typed references, and exception regions
 - [x] Arithmetic and logic opcodes
 - [x] Branch instructions
 - [x] Local variables and arguments
-- [x] Basic GC
+- [x] Runtime type and member resolution
+- [x] Virtual and interface dispatch
+- [x] Generic type and method instantiation
+- [x] Vector and multidimensional arrays, including non-zero lower bounds, enumeration, and compiler-emitted array access methods
+- [x] Reflection for assemblies, types, methods, constructors, fields, properties, events, and generic metadata
+- [x] Mark-and-sweep GC with finalization, handles, interior value scanning, and thread root scanning
+- [x] Cross-platform threading, monitors, events, semaphores, and atomic operations
 
 ### In Progress
-- [ ] Full opcode support
-- [ ] Type resolution
-- [ ] Method dispatch (virtual, interface)
-- [ ] Exception handling
-- [ ] Generics instantiation
+- [ ] Remaining ECMA-335 opcode and verifier edge cases
+- [ ] Broader CoreLib API coverage
+- [ ] Cross-runtime conformance and stress coverage
 
 ### Planned
-- [ ] Complete corlib implementation
 - [ ] P/Invoke support
-- [ ] Reflection
 - [ ] JIT compilation (optional)

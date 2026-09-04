@@ -37,13 +37,13 @@ namespace System.Threading
             return TryEnter(obj, (int)timeout.TotalMilliseconds);
         }
 
-        [MethodImpl(MethodImplOptions.InternalCall)]
-        public static extern bool Wait(object obj);
-
-        public static bool Wait(object obj, int millisecondsTimeout)
+        public static bool Wait(object obj)
         {
-            return Wait(obj);
+            return Wait(obj, -1);
         }
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern bool Wait(object obj, int millisecondsTimeout);
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern void Pulse(object obj);
@@ -98,10 +98,8 @@ namespace System.Threading
             return CompareExchange(ref location, 0, 0);
         }
 
-        public static void MemoryBarrier()
-        {
-            // TODO: Implement memory barrier
-        }
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern void MemoryBarrier();
     }
 
     /// <summary>
@@ -109,6 +107,7 @@ namespace System.Threading
     /// </summary>
     public class ManualResetEvent : WaitHandle
     {
+        private readonly object _gate = new object();
         private bool _signaled;
 
         public ManualResetEvent(bool initialState)
@@ -118,22 +117,38 @@ namespace System.Threading
 
         public bool Set()
         {
+            Monitor.Enter(_gate);
             _signaled = true;
+            Monitor.PulseAll(_gate);
+            Monitor.Exit(_gate);
             return true;
         }
 
         public bool Reset()
         {
+            Monitor.Enter(_gate);
             _signaled = false;
+            Monitor.Exit(_gate);
             return true;
         }
 
-        public override bool WaitOne()
+        public override bool WaitOne(int millisecondsTimeout)
         {
+            ValidateTimeout(millisecondsTimeout);
+            int start = Environment.TickCount;
+
+            Monitor.Enter(_gate);
             while (!_signaled)
             {
-                Thread.Sleep(1);
+                int remaining = RemainingTimeout(start, millisecondsTimeout);
+                if (remaining == 0 || !Monitor.Wait(_gate, remaining))
+                {
+                    Monitor.Exit(_gate);
+                    return false;
+                }
             }
+
+            Monitor.Exit(_gate);
             return true;
         }
     }
@@ -143,6 +158,7 @@ namespace System.Threading
     /// </summary>
     public class AutoResetEvent : WaitHandle
     {
+        private readonly object _gate = new object();
         private bool _signaled;
 
         public AutoResetEvent(bool initialState)
@@ -152,23 +168,39 @@ namespace System.Threading
 
         public bool Set()
         {
+            Monitor.Enter(_gate);
             _signaled = true;
+            Monitor.Pulse(_gate);
+            Monitor.Exit(_gate);
             return true;
         }
 
         public bool Reset()
         {
+            Monitor.Enter(_gate);
             _signaled = false;
+            Monitor.Exit(_gate);
             return true;
         }
 
-        public override bool WaitOne()
+        public override bool WaitOne(int millisecondsTimeout)
         {
+            ValidateTimeout(millisecondsTimeout);
+            int start = Environment.TickCount;
+
+            Monitor.Enter(_gate);
             while (!_signaled)
             {
-                Thread.Sleep(1);
+                int remaining = RemainingTimeout(start, millisecondsTimeout);
+                if (remaining == 0 || !Monitor.Wait(_gate, remaining))
+                {
+                    Monitor.Exit(_gate);
+                    return false;
+                }
             }
+
             _signaled = false;
+            Monitor.Exit(_gate);
             return true;
         }
     }
@@ -185,10 +217,7 @@ namespace System.Threading
             return WaitOne(-1);
         }
 
-        public virtual bool WaitOne(int millisecondsTimeout)
-        {
-            return true;
-        }
+        public abstract bool WaitOne(int millisecondsTimeout);
 
         public virtual bool WaitOne(TimeSpan timeout)
         {
@@ -209,6 +238,30 @@ namespace System.Threading
         protected virtual void Dispose(bool disposing)
         {
         }
+
+        protected static void ValidateTimeout(int millisecondsTimeout)
+        {
+            if (millisecondsTimeout < -1)
+            {
+                throw new ArgumentOutOfRangeException("millisecondsTimeout");
+            }
+        }
+
+        protected static int RemainingTimeout(int start, int millisecondsTimeout)
+        {
+            if (millisecondsTimeout < 0)
+            {
+                return -1;
+            }
+
+            uint elapsed = (uint)(Environment.TickCount - start);
+            if (elapsed >= (uint)millisecondsTimeout)
+            {
+                return 0;
+            }
+
+            return millisecondsTimeout - (int)elapsed;
+        }
     }
 
     /// <summary>
@@ -216,6 +269,7 @@ namespace System.Threading
     /// </summary>
     public sealed class Semaphore : WaitHandle
     {
+        private readonly object _gate = new object();
         private int _currentCount;
         private int _maximumCount;
 
@@ -240,25 +294,42 @@ namespace System.Threading
         public int Release(int releaseCount)
         {
             if (releaseCount < 1)
-                throw new ArgumentOutOfRangeException("releaseCount");
-
-            int previousCount = _currentCount;
-            _currentCount += releaseCount;
-            if (_currentCount > _maximumCount)
             {
-                _currentCount = previousCount;
+                throw new ArgumentOutOfRangeException("releaseCount");
+            }
+
+            Monitor.Enter(_gate);
+            int previousCount = _currentCount;
+            if (releaseCount > _maximumCount - _currentCount)
+            {
+                Monitor.Exit(_gate);
                 throw new InvalidOperationException("Adding the specified count would cause the semaphore to exceed its maximum count.");
             }
+
+            _currentCount += releaseCount;
+            Monitor.PulseAll(_gate);
+            Monitor.Exit(_gate);
             return previousCount;
         }
 
-        public override bool WaitOne()
+        public override bool WaitOne(int millisecondsTimeout)
         {
+            ValidateTimeout(millisecondsTimeout);
+            int start = Environment.TickCount;
+
+            Monitor.Enter(_gate);
             while (_currentCount <= 0)
             {
-                Thread.Sleep(1);
+                int remaining = RemainingTimeout(start, millisecondsTimeout);
+                if (remaining == 0 || !Monitor.Wait(_gate, remaining))
+                {
+                    Monitor.Exit(_gate);
+                    return false;
+                }
             }
+
             _currentCount--;
+            Monitor.Exit(_gate);
             return true;
         }
     }
@@ -268,7 +339,7 @@ namespace System.Threading
     /// </summary>
     public sealed class Mutex : WaitHandle
     {
-        private bool _owned;
+        private readonly object _gate = new object();
 
         public Mutex() : this(false)
         {
@@ -276,22 +347,21 @@ namespace System.Threading
 
         public Mutex(bool initiallyOwned)
         {
-            _owned = initiallyOwned;
+            if (initiallyOwned)
+            {
+                Monitor.Enter(_gate);
+            }
         }
 
         public void ReleaseMutex()
         {
-            _owned = false;
+            Monitor.Exit(_gate);
         }
 
-        public override bool WaitOne()
+        public override bool WaitOne(int millisecondsTimeout)
         {
-            while (_owned)
-            {
-                Thread.Sleep(1);
-            }
-            _owned = true;
-            return true;
+            ValidateTimeout(millisecondsTimeout);
+            return Monitor.TryEnter(_gate, millisecondsTimeout);
         }
     }
 }

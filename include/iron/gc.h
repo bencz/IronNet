@@ -7,7 +7,7 @@
  * - Weak references
  * - Finalization support
  * 
- * Pure C89 compatible
+ * Strict C99 compatible
  */
 
 #ifndef IRON_GC_H
@@ -32,15 +32,13 @@ typedef struct iron_gc_config {
     iron_size max_heap_size;
     iron_size threshold;           /* Bytes allocated before collection */
     iron_bool enable_finalization;
-    iron_bool enable_compaction;   /* Not implemented yet */
 } iron_gc_config_t;
 
 #define IRON_GC_DEFAULT_CONFIG { \
     1024 * 1024,      /* 1MB initial */ \
     256 * 1024 * 1024, /* 256MB max */ \
     512 * 1024,       /* 512KB threshold */ \
-    IRON_TRUE,        /* Enable finalization */ \
-    IRON_FALSE        /* No compaction */ \
+    IRON_TRUE         /* Enable finalization */ \
 }
 
 /* ============================================================================
@@ -88,8 +86,6 @@ typedef struct iron_gc {
     
     /* Object lists */
     iron_gc_header_t *all_objects;
-    iron_gc_header_t *finalize_queue;
-    iron_gc_header_t *weak_refs;
     
     /* Handles */
     iron_gc_handle_t *handles;
@@ -125,9 +121,34 @@ IRON_API void *iron_gc_alloc_object(iron_gc_t *gc,
 
 /* Allocate array */
 IRON_API void *iron_gc_alloc_array_raw(iron_gc_t *gc,
-                                        iron_runtime_type_t *type,
+                                        iron_runtime_type_t *element_type,
                                         iron_size element_size,
                                         iron_u32 length);
+
+IRON_API void *iron_gc_alloc_mdarray_raw(iron_gc_t *gc,
+                                          iron_runtime_type_t *array_type,
+                                          iron_runtime_type_t *element_type,
+                                          iron_size element_size,
+                                          const iron_u32 *lengths,
+                                          const iron_i32 *lower_bounds,
+                                          iron_u32 rank);
+
+IRON_API iron_u32 iron_array_get_length(const void *array);
+IRON_API iron_u32 iron_array_get_rank(const void *array);
+IRON_API iron_bool iron_array_get_dimension_length(const void *array,
+                                                    iron_u32 dimension,
+                                                    iron_u32 *length);
+IRON_API iron_bool iron_array_get_lower_bound(const void *array,
+                                              iron_u32 dimension,
+                                              iron_i32 *lower_bound);
+IRON_API iron_bool iron_array_get_element_offset(const void *array,
+                                                 const iron_i32 *indices,
+                                                 iron_u32 rank,
+                                                 iron_size *offset);
+IRON_API iron_size iron_array_get_element_size(const void *array);
+IRON_API iron_runtime_type_t *iron_array_get_element_type(const void *array);
+IRON_API void *iron_array_get_data(void *array);
+IRON_API const void *iron_array_get_const_data(const void *array);
 
 /* Force collection */
 IRON_API void iron_gc_collect(iron_gc_t *gc);
@@ -165,6 +186,9 @@ IRON_API iron_runtime_type_t *iron_gc_get_type(void *obj);
 
 /* Get object size */
 IRON_API iron_size iron_gc_get_size(void *obj);
+
+/* Resolve an exact or interior managed address to its owning object. */
+IRON_API void *iron_gc_find_containing_object(const iron_gc_t *gc, const void *address);
 
 /* Pin object */
 IRON_API void iron_gc_pin(void *obj);
