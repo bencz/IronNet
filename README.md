@@ -166,6 +166,9 @@ Platform-independent threading primitives:
 - [ ] Broader CoreLib API coverage
 - [ ] Cross-runtime conformance and stress coverage
 
+The [conformance plan](docs/CONFORMANCE-PLAN.md) tracks the ECMA-335 and .NET Standard 2.0 goals, implementation gaps, and validation limits.
+The [API inventory](docs/API-INVENTORY.md) is generated against the official .NET Standard 2.0 reference; API presence alone does not establish conformance.
+
 ### Planned
 - [ ] P/Invoke support
 - [ ] JIT compilation (optional)

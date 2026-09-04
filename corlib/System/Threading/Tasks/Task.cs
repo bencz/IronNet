@@ -876,6 +876,12 @@ namespace System.Threading.Tasks
             return true;
         }
 
+        internal void RegisterAwaitContinuation(Action continuation, bool continueOnCapturedContext)
+        {
+            AsyncContinuation registration = new AsyncContinuation(continuation, continueOnCapturedContext);
+            RegisterContinuation(registration.Schedule);
+        }
+
         private void RegisterContinuation(Action continuation)
         {
             bool runNow;

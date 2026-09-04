@@ -12,6 +12,8 @@ namespace System
         /// </summary>
         public static string NewLine => "\n";
 
+        public static int CurrentManagedThreadId => Threading.Thread.CurrentThread.ManagedThreadId;
+
         /// <summary>
         /// Gets the number of milliseconds elapsed since the system started
         /// </summary>

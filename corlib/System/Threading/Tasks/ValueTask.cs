@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace System.Threading.Tasks
 {
@@ -72,22 +73,14 @@ namespace System.Threading.Tasks
             }
         }
 
-        internal void OnCompleted(Action continuation, bool useUnsafeContinuation)
+        internal void OnCompleted(Action continuation, bool continueOnCapturedContext)
         {
             if (continuation == null)
             {
                 throw new ArgumentNullException("continuation");
             }
 
-            TaskAwaiter awaiter = AsTask().GetAwaiter();
-            if (useUnsafeContinuation)
-            {
-                awaiter.UnsafeOnCompleted(continuation);
-            }
-            else
-            {
-                awaiter.OnCompleted(continuation);
-            }
+            AsTask().RegisterAwaitContinuation(continuation, continueOnCapturedContext);
         }
     }
 
@@ -175,25 +168,21 @@ namespace System.Threading.Tasks
             return _task == null ? _result : _task.GetResultValue();
         }
 
-        internal void OnCompleted(Action continuation, bool useUnsafeContinuation)
+        internal void OnCompleted(Action continuation, bool continueOnCapturedContext)
         {
             if (continuation == null)
             {
                 throw new ArgumentNullException("continuation");
             }
 
-            TaskAwaiter<TResult> awaiter = AsTask().GetAwaiter();
-            if (useUnsafeContinuation)
-            {
-                awaiter.UnsafeOnCompleted(continuation);
-            }
-            else
-            {
-                awaiter.OnCompleted(continuation);
-            }
+            AsTask().RegisterAwaitContinuation(continuation, continueOnCapturedContext);
         }
     }
 
+}
+
+namespace System.Runtime.CompilerServices
+{
     public struct ConfiguredValueTaskAwaitable
     {
         private readonly ValueTask _value;
@@ -230,12 +219,12 @@ namespace System.Threading.Tasks
 
             public void OnCompleted(Action continuation)
             {
-                _value.OnCompleted(continuation, false);
+                _value.OnCompleted(continuation, _continueOnCapturedContext);
             }
 
             public void UnsafeOnCompleted(Action continuation)
             {
-                _value.OnCompleted(continuation, true);
+                _value.OnCompleted(continuation, _continueOnCapturedContext);
             }
         }
     }
@@ -276,12 +265,12 @@ namespace System.Threading.Tasks
 
             public void OnCompleted(Action continuation)
             {
-                _value.OnCompleted(continuation, false);
+                _value.OnCompleted(continuation, _continueOnCapturedContext);
             }
 
             public void UnsafeOnCompleted(Action continuation)
             {
-                _value.OnCompleted(continuation, true);
+                _value.OnCompleted(continuation, _continueOnCapturedContext);
             }
         }
     }

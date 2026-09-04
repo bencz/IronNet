@@ -1,0 +1,86 @@
+# Declared API inventory
+
+Declared public/protected types and member signatures, including property/event accessors. Presence is not behavioral or binary conformance.
+
+Types present: 222/2417. Member signatures present: 2004/32559.
+
+| Namespace | Types present | Types required | Signatures present | Signatures required |
+| --- | ---: | ---: | ---: | ---: |
+| Microsoft.Win32.SafeHandles | 0 | 11 | 0 | 23 |
+| System | 85 | 256 | 799 | 3770 |
+| System.CodeDom.Compiler | 0 | 2 | 0 | 50 |
+| System.Collections | 9 | 25 | 58 | 365 |
+| System.Collections.Concurrent | 0 | 10 | 0 | 145 |
+| System.Collections.Generic | 25 | 41 | 201 | 418 |
+| System.Collections.ObjectModel | 1 | 8 | 11 | 100 |
+| System.Collections.Specialized | 0 | 17 | 0 | 268 |
+| System.ComponentModel | 0 | 180 | 0 | 1618 |
+| System.ComponentModel.Design | 0 | 60 | 0 | 476 |
+| System.ComponentModel.Design.Serialization | 0 | 19 | 0 | 135 |
+| System.Configuration.Assemblies | 0 | 2 | 0 | 11 |
+| System.Data | 0 | 97 | 0 | 1365 |
+| System.Data.Common | 0 | 33 | 0 | 757 |
+| System.Data.SqlTypes | 0 | 24 | 0 | 897 |
+| System.Diagnostics | 2 | 55 | 27 | 856 |
+| System.Diagnostics.CodeAnalysis | 0 | 2 | 0 | 18 |
+| System.Diagnostics.Contracts | 0 | 14 | 0 | 75 |
+| System.Diagnostics.SymbolStore | 0 | 15 | 0 | 131 |
+| System.Diagnostics.Tracing | 0 | 26 | 0 | 260 |
+| System.Drawing | 0 | 7 | 0 | 513 |
+| System.Dynamic | 0 | 20 | 0 | 180 |
+| System.Globalization | 0 | 41 | 0 | 1002 |
+| System.IO | 8 | 49 | 108 | 936 |
+| System.IO.Compression | 0 | 9 | 0 | 107 |
+| System.IO.IsolatedStorage | 0 | 6 | 0 | 128 |
+| System.IO.MemoryMappedFiles | 0 | 6 | 0 | 62 |
+| System.IO.Pipes | 0 | 9 | 0 | 118 |
+| System.Linq | 2 | 21 | 70 | 544 |
+| System.Linq.Expressions | 0 | 43 | 0 | 825 |
+| System.Net | 0 | 85 | 0 | 1543 |
+| System.Net.Cache | 0 | 5 | 0 | 47 |
+| System.Net.Http | 0 | 19 | 0 | 256 |
+| System.Net.Http.Headers | 0 | 25 | 0 | 480 |
+| System.Net.Mail | 0 | 20 | 0 | 278 |
+| System.Net.Mime | 0 | 8 | 0 | 67 |
+| System.Net.NetworkInformation | 0 | 44 | 0 | 662 |
+| System.Net.Security | 0 | 9 | 0 | 196 |
+| System.Net.Sockets | 0 | 32 | 0 | 778 |
+| System.Net.WebSockets | 0 | 11 | 0 | 177 |
+| System.Numerics | 0 | 2 | 0 | 191 |
+| System.Reflection | 19 | 85 | 242 | 1078 |
+| System.Reflection.Emit | 0 | 7 | 0 | 325 |
+| System.Resources | 0 | 11 | 0 | 95 |
+| System.Runtime | 0 | 6 | 0 | 25 |
+| System.Runtime.CompilerServices | 30 | 91 | 95 | 265 |
+| System.Runtime.ConstrainedExecution | 0 | 5 | 0 | 17 |
+| System.Runtime.ExceptionServices | 0 | 3 | 0 | 8 |
+| System.Runtime.InteropServices | 12 | 77 | 109 | 607 |
+| System.Runtime.InteropServices.ComTypes | 0 | 59 | 0 | 427 |
+| System.Runtime.Serialization | 0 | 50 | 0 | 434 |
+| System.Runtime.Serialization.Formatters | 0 | 3 | 0 | 10 |
+| System.Runtime.Serialization.Formatters.Binary | 0 | 1 | 0 | 22 |
+| System.Runtime.Serialization.Json | 0 | 5 | 0 | 75 |
+| System.Runtime.Versioning | 0 | 8 | 0 | 50 |
+| System.Security | 0 | 18 | 0 | 123 |
+| System.Security.Authentication | 0 | 6 | 0 | 36 |
+| System.Security.Authentication.ExtendedProtection | 0 | 7 | 0 | 38 |
+| System.Security.Claims | 0 | 5 | 0 | 201 |
+| System.Security.Cryptography | 0 | 98 | 0 | 983 |
+| System.Security.Cryptography.X509Certificates | 0 | 39 | 0 | 471 |
+| System.Security.Permissions | 0 | 5 | 0 | 83 |
+| System.Security.Principal | 0 | 6 | 0 | 35 |
+| System.Text | 4 | 26 | 46 | 418 |
+| System.Text.RegularExpressions | 0 | 12 | 0 | 197 |
+| System.Threading | 18 | 67 | 129 | 688 |
+| System.Threading.Tasks | 7 | 18 | 109 | 419 |
+| System.Timers | 0 | 4 | 0 | 35 |
+| System.Transactions | 0 | 34 | 0 | 180 |
+| System.Web | 0 | 1 | 0 | 31 |
+| System.Windows.Input | 0 | 1 | 0 | 5 |
+| System.Xml | 0 | 80 | 0 | 1814 |
+| System.Xml.Linq | 0 | 23 | 0 | 394 |
+| System.Xml.Resolvers | 0 | 2 | 0 | 23 |
+| System.Xml.Schema | 0 | 89 | 0 | 867 |
+| System.Xml.Serialization | 0 | 71 | 0 | 879 |
+| System.Xml.XPath | 0 | 15 | 0 | 244 |
+| System.Xml.Xsl | 0 | 11 | 0 | 129 |

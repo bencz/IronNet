@@ -1359,6 +1359,33 @@ static iron_bool method_matches_member_signature(iron_assembly_t *assembly, cons
     return definition_reader.pos == definition_reader.size && reference_reader.pos == reference_reader.size;
 }
 
+static iron_runtime_method_t *find_member_reference_method(iron_assembly_t *assembly,
+                                                          const iron_member_ref_row_t *member_ref,
+                                                          iron_runtime_type_t *type,
+                                                          const char *name)
+{
+    iron_runtime_type_t *current;
+
+    if (!name) {
+        return NULL;
+    }
+
+    for (current = type; current; current = current->base_type) {
+        iron_u32 method_index;
+
+        for (method_index = 0; method_index < current->method_count; method_index++) {
+            iron_runtime_method_t *candidate;
+
+            candidate = current->methods[method_index];
+            if (candidate && candidate->name && strcmp(candidate->name, name) == 0 && method_matches_member_signature(assembly, member_ref, candidate)) {
+                return candidate;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 iron_runtime_method_t *iron_resolve_method_token(iron_assembly_t *assembly, iron_token_t token)
 {
     iron_u32 table_id;
@@ -1404,21 +1431,9 @@ iron_runtime_method_t *iron_resolve_method_token(iron_assembly_t *assembly, iron
 
         if (class_table == IRON_TABLE_TYPE_REF) {
             iron_runtime_type_t *type;
-            iron_runtime_type_t *current;
 
             type = iron_type_resolve_token(assembly->module, class_token);
-            for (current = type; current; current = current->base_type) {
-                iron_u32 method_index;
-
-                for (method_index = 0; method_index < current->method_count; method_index++) {
-                    iron_runtime_method_t *candidate;
-
-                    candidate = current->methods[method_index];
-                    if (candidate && candidate->name && strcmp(candidate->name, method_name) == 0 && method_matches_member_signature(assembly, &member_ref, candidate)) {
-                        return candidate;
-                    }
-                }
-            }
+            return find_member_reference_method(assembly, &member_ref, type, method_name);
         }
         else if (class_table == IRON_TABLE_TYPE_DEF) {
             /* Reference to type in same assembly */
@@ -1454,149 +1469,35 @@ iron_runtime_method_t *iron_resolve_method_token(iron_assembly_t *assembly, iron
             }
         }
         else if (class_table == IRON_TABLE_TYPE_SPEC) {
-            /* Reference to generic type instantiation (TypeSpec) */
-            /* TypeSpec contains a blob signature describing the generic type */
             iron_type_spec_row_t type_spec;
-            IRON_DEBUG_META("MemberRef resolving TypeSpec: class_token=0x%08X method=%s", 
-                           class_token, method_name);
-            res = iron_metadata_read_row(&assembly->metadata, class_token, &type_spec);
-            IRON_DEBUG_META("TypeSpec read_row result: %s sig_idx=0x%X", 
-                           IRON_RESULT_OK(res) ? "OK" : "FAIL",
-                           IRON_RESULT_OK(res) ? type_spec.signature : 0);
-            if (IRON_RESULT_OK(res)) {
-                const iron_u8 *sig_data;
-                iron_u32 sig_size;
-                
-                if (IRON_RESULT_OK(iron_metadata_get_blob(&assembly->metadata, type_spec.signature, &sig_data, &sig_size))) {
-                    /* TypeSpec signature format:
-                     * GENERICINST (0x15) followed by:
-                     * - CLASS (0x12) or VALUETYPE (0x11)
-                     * - TypeDefOrRef coded index
-                     * - GenArgCount
-                     * - Type arguments...
-                     */
-                    IRON_DEBUG_META("TypeSpec sig: size=%u bytes=[%02X %02X %02X %02X]",
-                                   sig_size,
-                                   sig_size > 0 ? sig_data[0] : 0,
-                                   sig_size > 1 ? sig_data[1] : 0,
-                                   sig_size > 2 ? sig_data[2] : 0,
-                                   sig_size > 3 ? sig_data[3] : 0);
-                    if (sig_size >= 3 && sig_data[0] == 0x15) { /* GENERICINST */
-                        iron_u8 class_or_value = sig_data[1];
-                        iron_u32 type_token_coded;
-                        iron_u32 idx = 2;
-                        iron_u32 generic_type_token;
-                        
-                        (void)class_or_value; /* Unused for now */
-                        
-                        /* Read compressed TypeDefOrRef token */
-                        type_token_coded = sig_data[idx++];
-                        if (type_token_coded & 0x80) {
-                            type_token_coded = ((type_token_coded & 0x3F) << 8) | sig_data[idx++];
-                        }
-                        
-                        /* Decode TypeDefOrRef coded index */
-                        generic_type_token = iron_metadata_decode_coded(&assembly->metadata,
-                                                                        IRON_CODED_TYPE_DEF_OR_REF,
-                                                                        type_token_coded);
-                        IRON_DEBUG_META("TypeSpec: type_token_coded=0x%X generic_type_token=0x%08X",
-                                       type_token_coded, generic_type_token);
-                        
-                        /* Resolve the generic type definition and find the method */
-                        {
-                            iron_u32 gen_table = (generic_type_token >> 24) & 0xFF;
-                            if (gen_table == IRON_TABLE_TYPE_DEF) {
-                                iron_type_def_row_t gen_type_def;
-                                if (IRON_RESULT_OK(iron_metadata_read_row(&assembly->metadata, generic_type_token, &gen_type_def))) {
-                                    iron_u32 method_start = gen_type_def.method_list;
-                                    iron_u32 method_end;
-                                    iron_u32 type_count = iron_metadata_table_rows(&assembly->metadata, IRON_TABLE_TYPE_DEF);
-                                    iron_u32 type_row = (generic_type_token & 0x00FFFFFF);
-                                    iron_u32 m;
-                                    
-                                    if (type_row < type_count) {
-                                        iron_type_def_row_t next_type;
-                                        iron_token_t next_token = IRON_MAKE_TOKEN(IRON_TABLE_TYPE_DEF, type_row + 1);
-                                        if (IRON_RESULT_OK(iron_metadata_read_row(&assembly->metadata, next_token, &next_type))) {
-                                            method_end = next_type.method_list;
-                                        } else {
-                                            method_end = iron_metadata_table_rows(&assembly->metadata, IRON_TABLE_METHOD_DEF) + 1;
-                                        }
-                                    } else {
-                                        method_end = iron_metadata_table_rows(&assembly->metadata, IRON_TABLE_METHOD_DEF) + 1;
-                                    }
-                                    
-                                    for (m = method_start; m < method_end; m++) {
-                                        iron_token_t meth_token = IRON_MAKE_TOKEN(IRON_TABLE_METHOD_DEF, m);
-                                        iron_runtime_method_t *meth = iron_resolve_method_token(assembly, meth_token);
-                                        if (meth && meth->name && strcmp(meth->name, method_name) == 0 && method_matches_member_signature(assembly, &member_ref, meth)) {
-                                            return meth;
-                                        }
-                                    }
-                                }
-                            }
-                            else if (gen_table == IRON_TABLE_TYPE_REF) {
-                                /* TypeRef - reference to type in another assembly (e.g., corlib) */
-                                iron_type_ref_row_t type_ref;
-                                if (IRON_RESULT_OK(iron_metadata_read_row(&assembly->metadata, generic_type_token, &type_ref))) {
-                                    const char *type_name = iron_metadata_get_string(&assembly->metadata, type_ref.name);
-                                    const char *type_ns = iron_metadata_get_string(&assembly->metadata, type_ref.namespace_);
-                                    
-                                    /* Search in domain's loaded assemblies for this type */
-                                    if (assembly->domain) {
-                                        iron_u32 a;
-                                        for (a = 0; a < assembly->domain->assembly_count; a++) {
-                                            iron_assembly_t *ref_asm = assembly->domain->assemblies[a];
-                                            if (!ref_asm) continue;
-                                            
-                                            /* Search for type in this assembly */
-                                            iron_u32 t;
-                                            iron_u32 ref_type_count = iron_metadata_table_rows(&ref_asm->metadata, IRON_TABLE_TYPE_DEF);
-                                            for (t = 1; t <= ref_type_count; t++) {
-                                                iron_type_def_row_t ref_type_def;
-                                                iron_token_t ref_type_token = IRON_MAKE_TOKEN(IRON_TABLE_TYPE_DEF, t);
-                                                if (IRON_RESULT_OK(iron_metadata_read_row(&ref_asm->metadata, ref_type_token, &ref_type_def))) {
-                                                    const char *ref_name = iron_metadata_get_string(&ref_asm->metadata, ref_type_def.name);
-                                                    const char *ref_ns = iron_metadata_get_string(&ref_asm->metadata, ref_type_def.namespace_);
-                                                    
-                                                    if (ref_name && type_name && strcmp(ref_name, type_name) == 0 &&
-                                                        ((ref_ns == NULL && type_ns == NULL) ||
-                                                         (ref_ns && type_ns && strcmp(ref_ns, type_ns) == 0))) {
-                                                        /* Found the type - now find the method */
-                                                        iron_u32 method_start = ref_type_def.method_list;
-                                                        iron_u32 method_end;
-                                                        iron_u32 m;
-                                                        
-                                                        if (t < ref_type_count) {
-                                                            iron_type_def_row_t next_type;
-                                                            iron_token_t next_token = IRON_MAKE_TOKEN(IRON_TABLE_TYPE_DEF, t + 1);
-                                                            if (IRON_RESULT_OK(iron_metadata_read_row(&ref_asm->metadata, next_token, &next_type))) {
-                                                                method_end = next_type.method_list;
-                                                            } else {
-                                                                method_end = iron_metadata_table_rows(&ref_asm->metadata, IRON_TABLE_METHOD_DEF) + 1;
-                                                            }
-                                                        } else {
-                                                            method_end = iron_metadata_table_rows(&ref_asm->metadata, IRON_TABLE_METHOD_DEF) + 1;
-                                                        }
-                                                        
-                                                        for (m = method_start; m < method_end; m++) {
-                                                            iron_token_t meth_token = IRON_MAKE_TOKEN(IRON_TABLE_METHOD_DEF, m);
-                                                            iron_runtime_method_t *meth = iron_resolve_method_token(ref_asm, meth_token);
-                                                            if (meth && meth->name && strcmp(meth->name, method_name) == 0 && method_matches_member_signature(assembly, &member_ref, meth)) {
-                                                                return meth;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            const iron_u8 *signature;
+            iron_u32 signature_size;
+            iron_sig_reader_t reader;
+            iron_sig_reader_t validation_reader;
+            iron_element_type_t element_type;
+            iron_element_type_t class_or_value;
+            iron_token_t definition_token;
+            iron_runtime_type_t *type;
+
+            if (!IRON_RESULT_OK(iron_metadata_read_row(&assembly->metadata, class_token, &type_spec)) ||
+                !IRON_RESULT_OK(iron_metadata_get_blob(&assembly->metadata, type_spec.signature, &signature, &signature_size))) {
+                return NULL;
             }
+
+            iron_sig_init(&reader, signature, signature_size);
+            validation_reader = reader;
+            if (!signature_type_skip(&validation_reader) || validation_reader.pos != validation_reader.size ||
+                !IRON_RESULT_OK(read_effective_element_type(&reader, &element_type)) || element_type != IRON_TYPE_GENERICINST ||
+                !IRON_RESULT_OK(iron_sig_read_element_type(&reader, &class_or_value)) ||
+                (class_or_value != IRON_TYPE_CLASS && class_or_value != IRON_TYPE_VALUETYPE) ||
+                !IRON_RESULT_OK(iron_sig_read_type_def_or_ref(&reader, &definition_token))) {
+                return NULL;
+            }
+
+            /* Preserve the declaring-type chain for nested TypeRefs, and use the
+             * shared signature reader for all compressed token widths. */
+            type = iron_type_resolve_token(assembly->module, definition_token);
+            return find_member_reference_method(assembly, &member_ref, type, method_name);
         }
 
         return NULL;
@@ -4192,7 +4093,9 @@ static iron_bool array_type_is_assignable_to(iron_runtime_type_t *source, iron_r
             return IRON_FALSE;
         }
 
-        if (strcmp(target_name, "System.Collections.Generic.IEnumerable`1") == 0) {
+        if (strcmp(target_name, "System.Collections.Generic.IEnumerable`1") == 0 ||
+            strcmp(target_name, "System.Collections.Generic.IReadOnlyCollection`1") == 0 ||
+            strcmp(target_name, "System.Collections.Generic.IReadOnlyList`1") == 0) {
             if (source->element == target->generic_args[0]) {
                 return IRON_TRUE;
             }
@@ -4219,6 +4122,51 @@ static iron_bool array_type_is_assignable_to(iron_runtime_type_t *source, iron_r
     return iron_type_is_managed_reference(source->element) && iron_type_is_managed_reference(target->element) && iron_type_is_assignable_to(source->element, target->element);
 }
 
+iron_runtime_type_t *iron_type_nullable_argument(const iron_runtime_type_t *type)
+{
+    if (!type || !type->generic_definition || !type->generic_definition->full_name ||
+        type->generic_arg_count != 1 || !type->generic_args || strcmp(type->generic_definition->full_name, "System.Nullable`1") != 0) {
+        return NULL;
+    }
+
+    return type->generic_args[0];
+}
+
+iron_bool iron_type_nullable_layout(iron_runtime_type_t *type, iron_u32 *has_value_offset, iron_u32 *value_offset)
+{
+    iron_runtime_type_t *argument;
+    iron_u32 index;
+    iron_bool found_flag;
+    iron_bool found_value;
+    iron_size value_size;
+
+    argument = iron_type_nullable_argument(type);
+    if (!argument || !has_value_offset || !value_offset) {
+        return IRON_FALSE;
+    }
+
+    found_flag = IRON_FALSE;
+    found_value = IRON_FALSE;
+    value_size = iron_type_storage_size(argument);
+    for (index = 0; index < type->field_count; index++) {
+        iron_runtime_field_t *field;
+
+        field = type->fields[index];
+        if (!field || !field->name || (field->attrs & 0x0010) != 0) {
+            continue;
+        }
+        if (strcmp(field->name, "_hasValue") == 0 && field->offset < type->instance_size) {
+            *has_value_offset = field->offset;
+            found_flag = IRON_TRUE;
+        } else if (strcmp(field->name, "_value") == 0 && field->offset <= type->instance_size && value_size <= type->instance_size - field->offset) {
+            *value_offset = field->offset;
+            found_value = IRON_TRUE;
+        }
+    }
+
+    return found_flag && found_value;
+}
+
 iron_bool iron_type_is_assignable_to(iron_runtime_type_t *source, iron_runtime_type_t *target)
 {
     iron_runtime_type_t *current;
@@ -4227,7 +4175,7 @@ iron_bool iron_type_is_assignable_to(iron_runtime_type_t *source, iron_runtime_t
         return IRON_FALSE;
     }
 
-    if (source == target || source->generic_definition == target || array_type_is_assignable_to(source, target)) {
+    if (source == target || source == iron_type_nullable_argument(target) || source->generic_definition == target || array_type_is_assignable_to(source, target)) {
         return IRON_TRUE;
     }
 
@@ -5540,6 +5488,89 @@ iron_runtime_property_t *iron_property_resolve_token(iron_module_t *module, iron
     return property;
 }
 
+iron_runtime_method_t *iron_type_find_method_implementation(iron_runtime_type_t *type, const iron_runtime_method_t *contract)
+{
+    iron_assembly_t *assembly;
+    iron_u32 row_count;
+    iron_u32 row_index;
+    const iron_runtime_method_t *contract_definition;
+
+    if (!type || !type->module || !type->module->assembly || !contract || !contract->declaring_type) {
+        return NULL;
+    }
+
+    assembly = type->module->assembly;
+    contract_definition = contract->is_generic_instance ? contract->generic_definition : contract;
+    row_count = iron_metadata_table_rows(&assembly->metadata, IRON_TABLE_METHOD_IMPL);
+
+    for (row_index = 1; row_index <= row_count; row_index++) {
+        iron_method_impl_row_t row;
+        iron_token_t declaration_token;
+        iron_token_t body_token;
+        iron_runtime_method_t *declaration;
+        iron_runtime_type_t *owner;
+        iron_runtime_method_t *body;
+        iron_u32 method_index;
+
+        if (!IRON_RESULT_OK(iron_metadata_read_row(&assembly->metadata, IRON_MAKE_TOKEN(IRON_TABLE_METHOD_IMPL, row_index), &row)) ||
+            row.class_ != IRON_TOKEN_INDEX(type->token)) {
+            continue;
+        }
+
+        declaration_token = iron_metadata_decode_coded(&assembly->metadata, IRON_CODED_METHOD_DEF_OR_REF, row.method_declaration);
+        declaration = iron_resolve_method_token(assembly, declaration_token);
+        if (!declaration || !contract_definition || declaration->token != contract_definition->token ||
+            declaration->declaring_type->module != contract_definition->declaring_type->module) {
+            continue;
+        }
+
+        owner = declaration->declaring_type;
+        if (IRON_TOKEN_TABLE(declaration_token) == IRON_TABLE_MEMBER_REF) {
+            iron_member_ref_row_t member_ref;
+            iron_token_t parent_token;
+
+            if (!IRON_RESULT_OK(iron_metadata_read_row(&assembly->metadata, declaration_token, &member_ref))) {
+                continue;
+            }
+
+            parent_token = iron_metadata_decode_coded(&assembly->metadata, IRON_CODED_MEMBER_REF_PARENT, member_ref.class_);
+            if (IRON_TOKEN_TABLE(parent_token) == IRON_TABLE_TYPE_SPEC) {
+                iron_runtime_type_t **arguments;
+                iron_u32 argument_count;
+
+                arguments = type->is_generic_instance ? type->generic_args : type->generic_params;
+                argument_count = type->is_generic_instance ? type->generic_arg_count : type->generic_param_count;
+                owner = resolve_type_spec_arguments(assembly, parent_token, arguments, argument_count);
+            }
+        }
+
+        if (owner != contract->declaring_type) {
+            continue;
+        }
+
+        body_token = iron_metadata_decode_coded(&assembly->metadata, IRON_CODED_METHOD_DEF_OR_REF, row.method_body);
+        body = iron_resolve_method_token(assembly, body_token);
+        if (!body) {
+            continue;
+        }
+
+        for (method_index = 0; method_index < type->method_count; method_index++) {
+            iron_runtime_method_t *candidate;
+
+            candidate = type->methods[method_index];
+            if (candidate && candidate->token == body->token && candidate->declaring_type->module == body->declaring_type->module) {
+                if (contract->is_generic_instance && candidate->is_generic_definition) {
+                    return iron_method_make_generic(assembly->domain, candidate, contract->generic_args, contract->generic_arg_count);
+                }
+
+                return candidate;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 static iron_u32 event_list_metadata_index(iron_assembly_t *assembly, iron_u32 list_index)
 {
     if (iron_metadata_table_rows(&assembly->metadata, IRON_TABLE_EVENT_PTR) != 0) {
@@ -5806,6 +5837,7 @@ iron_result_t iron_exec_method(iron_exec_context_t *ctx,
         iron_u32 instruction_ip;
         iron_u32 i;
         iron_u32 stack_base; /* Save stack size before method execution */
+        iron_bool cleanup_execution_acquired;
         
         if (!thread) {
             return IRON_ERROR(IRON_ERR_INVALID_STATE, "No thread context");
@@ -5892,8 +5924,8 @@ iron_result_t iron_exec_method(iron_exec_context_t *ctx,
             instruction_ip = frame.ip;
             execution_acquired = iron_exec_enter_execution(ctx);
             interp_result = iron_exec_instruction(thread);
-            iron_exec_leave_execution(ctx, execution_acquired);
             if (interp_result == IRON_INTERP_OK || interp_result == IRON_INTERP_BRANCH) {
+                iron_exec_leave_execution(ctx, execution_acquired);
                 continue;
             }
 
@@ -5924,6 +5956,7 @@ iron_result_t iron_exec_method(iron_exec_context_t *ctx,
                     clause = &method->body->exceptions[handler_index];
                     clause_kind = clause->flags & (IRON_EX_CLAUSE_FILTER | IRON_EX_CLAUSE_FINALLY | IRON_EX_CLAUSE_FAULT);
                     thread->eval_stack.size = stack_base;
+                    iron_exec_discard_finally(thread, clause_kind == IRON_EX_CLAUSE_FILTER ? clause->u.filter_offset : clause->handler_offset);
                     frame.exception_handler_index = handler_index;
                     if (clause_kind == IRON_EX_CLAUSE_FILTER) {
                         memset(&exception_value, 0, sizeof(exception_value));
@@ -5939,8 +5972,11 @@ iron_result_t iron_exec_method(iron_exec_context_t *ctx,
                     } else if (clause_kind == IRON_EX_CLAUSE_FINALLY || clause_kind == IRON_EX_CLAUSE_FAULT) {
                         frame.filter_exception = NULL;
                         frame.flags &= ~IRON_FRAME_FILTER_REJECTED;
-                        frame.flags |= IRON_FRAME_FINALLY;
-                        frame.ip = clause->handler_offset;
+                        if (!iron_exec_enter_finally(thread, handler_index, 0, 0, thread->exception_state.current_exception)) {
+                            interp_result = IRON_INTERP_ERROR;
+                            iron_exec_leave_execution(ctx, execution_acquired);
+                            break;
+                        }
                     } else {
                         memset(&exception_value, 0, sizeof(exception_value));
                         exception_value.type = IRON_VAL_OBJ;
@@ -5952,15 +5988,19 @@ iron_result_t iron_exec_method(iron_exec_context_t *ctx,
                         frame.ip = clause->handler_offset;
                     }
                     interp_result = IRON_INTERP_OK;
+                    iron_exec_leave_execution(ctx, execution_acquired);
                     continue;
                 }
                 frame.ip = continuation_ip;
             }
 
+            iron_exec_leave_execution(ctx, execution_acquired);
             break;
         }
         
-        /* Pop frame */
+        /* Keep continuation removal and frame-root cleanup atomic with respect to GC. */
+        cleanup_execution_acquired = iron_exec_enter_execution(ctx);
+        iron_exec_discard_finally(thread, UINT32_MAX);
         thread->current_frame = frame.prev;
         
         /* Get return value from stack if any (only values pushed by this method) */
@@ -5983,6 +6023,8 @@ iron_result_t iron_exec_method(iron_exec_context_t *ctx,
             iron_free(ctx->allocator, frame.args,
                       frame.arg_count * sizeof(iron_stack_value_t));
         }
+
+        iron_exec_leave_execution(ctx, cleanup_execution_acquired);
         
         if (interp_result == IRON_INTERP_RETURN) {
             return IRON_SUCCESS;

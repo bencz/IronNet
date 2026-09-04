@@ -73,7 +73,7 @@ public static class TaskTest
         }
         catch (AggregateException exception)
         {
-            failedAsExpected = exception.InnerExceptions.Length == 1 && exception.InnerExceptions[0].Message == "worker-failure";
+            failedAsExpected = exception.InnerExceptions.Count == 1 && exception.InnerExceptions[0].Message == "worker-failure";
         }
 
         Require(failedAsExpected && failed.IsFaulted, "Faulted task did not preserve its exception.");
@@ -144,7 +144,7 @@ public static class TaskTest
         }
         catch (AggregateException exception)
         {
-            aggregatePreserved = exception.InnerExceptions.Length == 2 &&
+            aggregatePreserved = exception.InnerExceptions.Count == 2 &&
                                  object.ReferenceEquals(exception.InnerExceptions[0], secondFailure) &&
                                  object.ReferenceEquals(exception.InnerExceptions[1], firstFailure);
         }

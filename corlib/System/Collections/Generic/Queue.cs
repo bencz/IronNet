@@ -208,9 +208,14 @@ namespace System.Collections.Generic
             }
         }
 
-        public IEnumerator<T> GetEnumerator()
+        public Enumerator GetEnumerator()
         {
             return new Enumerator(this);
+        }
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -260,7 +265,7 @@ namespace System.Collections.Generic
             }
         }
 
-        private struct Enumerator : IEnumerator<T>
+        public struct Enumerator : IEnumerator<T>
         {
             private readonly Queue<T> _queue;
             private readonly int _version;
@@ -293,9 +298,14 @@ namespace System.Collections.Generic
             public bool MoveNext()
             {
                 EnsureUnmodified();
+                if (_index == -2)
+                {
+                    return false;
+                }
+
                 if (_index + 1 >= _queue._size)
                 {
-                    _index = _queue._size;
+                    _index = -2;
                     _current = default(T);
                     return false;
                 }
@@ -320,6 +330,8 @@ namespace System.Collections.Generic
 
             public void Dispose()
             {
+                _index = -2;
+                _current = default(T);
             }
 
             private void EnsureUnmodified()

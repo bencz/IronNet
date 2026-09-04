@@ -149,6 +149,16 @@ namespace System.Collections.Generic
         void RemoveAt(int index);
     }
 
+    public interface IReadOnlyCollection<out T> : IEnumerable<T>
+    {
+        int Count { get; }
+    }
+
+    public interface IReadOnlyList<out T> : IReadOnlyCollection<T>
+    {
+        T this[int index] { get; }
+    }
+
     /// <summary>
     /// Represents a generic collection of key/value pairs
     /// </summary>

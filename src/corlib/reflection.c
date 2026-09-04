@@ -1427,6 +1427,10 @@ static iron_result_t managed_object_to_stack_value(iron_exec_context_t *ctx,
         return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Invalid reflected argument conversion");
     }
 
+    if (iron_type_nullable_argument(expected_type)) {
+        return iron_nullable_unbox(ctx, expected_type, object, value);
+    }
+
     memset(value, 0, sizeof(*value));
     if (iron_type_is_managed_reference(expected_type)) {
         if (object) {
@@ -1665,8 +1669,7 @@ iron_result_t icall_RuntimeMethodInfo_Invoke(iron_exec_context_t *ctx, iron_stac
                 free_reflection_invoke_buffers(ctx, invoke_args, invoke_arg_count, byref_storage, byref_types, byref_handles, method->param_count);
                 return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to materialize a reflection by-reference result");
             }
-            boxed_value = iron_stack_value_box(ctx, byref_types[parameter_index], &updated_value);
-            if (!boxed_value && !iron_type_is_managed_reference(byref_types[parameter_index])) {
+            if (!iron_stack_value_box(ctx, byref_types[parameter_index], &updated_value, &boxed_value)) {
                 free_reflection_invoke_buffers(ctx, invoke_args, invoke_arg_count, byref_storage, byref_types, byref_handles, method->param_count);
                 return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a reflection by-reference result");
             }
@@ -1678,8 +1681,8 @@ iron_result_t icall_RuntimeMethodInfo_Invoke(iron_exec_context_t *ctx, iron_stac
     if (is_constructor) {
         result->value.obj = invoke_result.type == IRON_VAL_OBJ && invoke_result.value.obj ? invoke_result.value.obj : target;
     } else {
-        result->value.obj = iron_stack_value_box(ctx, method->return_type, &invoke_result);
-        if (method->return_type->element_type != IRON_TYPE_VOID && !result->value.obj && !iron_type_is_managed_reference(method->return_type)) {
+        result->value.obj = NULL;
+        if (method->return_type->element_type != IRON_TYPE_VOID && !iron_stack_value_box(ctx, method->return_type, &invoke_result, &result->value.obj)) {
             free_reflection_invoke_buffers(ctx, invoke_args, invoke_arg_count, byref_storage, byref_types, byref_handles, method->param_count);
             return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a reflection invocation result");
         }
@@ -1833,8 +1836,8 @@ iron_result_t icall_RuntimeFieldInfo_GetValue(iron_exec_context_t *ctx, iron_sta
         field_value.type = field->constant_type == IRON_TYPE_I8 || field->constant_type == IRON_TYPE_U8 ? IRON_VAL_I64 :
                            field->constant_type == IRON_TYPE_R4 ? IRON_VAL_F32 : field->constant_type == IRON_TYPE_R8 ? IRON_VAL_F64 : IRON_VAL_I32;
         field_value.value = field->constant_value;
-        result->value.obj = iron_stack_value_box(ctx, field->field_type, &field_value);
-        return result->value.obj ? IRON_SUCCESS : IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a literal field value");
+        return iron_stack_value_box(ctx, field->field_type, &field_value, &result->value.obj)
+            ? IRON_SUCCESS : IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a literal field value");
     }
 
     address_result = get_reflected_field_address(ctx, field, iron_corlib_object_argument(&args[1]), &address);
@@ -1846,8 +1849,8 @@ iron_result_t icall_RuntimeFieldInfo_GetValue(iron_exec_context_t *ctx, iron_sta
     }
 
     result->type = IRON_VAL_OBJ;
-    result->value.obj = iron_stack_value_box(ctx, field->field_type, &field_value);
-    return result->value.obj || iron_type_is_managed_reference(field->field_type) ? IRON_SUCCESS : IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a reflected field value");
+    return iron_stack_value_box(ctx, field->field_type, &field_value, &result->value.obj)
+        ? IRON_SUCCESS : IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a reflected field value");
 }
 
 iron_result_t icall_RuntimeFieldInfo_SetValue(iron_exec_context_t *ctx, iron_stack_value_t *args, iron_u32 arg_count, iron_stack_value_t *result)
@@ -1965,8 +1968,8 @@ iron_result_t icall_RuntimeParameterInfo_get_DefaultValue(iron_exec_context_t *c
     default_value.type = parameter->default_type == IRON_TYPE_I8 || parameter->default_type == IRON_TYPE_U8 ? IRON_VAL_I64 :
                          parameter->default_type == IRON_TYPE_R4 ? IRON_VAL_F32 : parameter->default_type == IRON_TYPE_R8 ? IRON_VAL_F64 : IRON_VAL_I32;
     default_value.value = parameter->default_value;
-    result->value.obj = iron_stack_value_box(ctx, parameter->param_type, &default_value);
-    return result->value.obj ? IRON_SUCCESS : IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a parameter default value");
+    return iron_stack_value_box(ctx, parameter->param_type, &default_value, &result->value.obj)
+        ? IRON_SUCCESS : IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box a parameter default value");
 }
 
 iron_result_t icall_RuntimePropertyInfo_get_Name(iron_exec_context_t *ctx, iron_stack_value_t *args, iron_u32 arg_count, iron_stack_value_t *result)

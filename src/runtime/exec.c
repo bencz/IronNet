@@ -64,7 +64,8 @@ static const char *get_array_interface_bridge_name(const iron_runtime_method_t *
         return NULL;
     }
 
-    if (strcmp(interface_name, "System.Collections.Generic.ICollection`1") == 0) {
+    if (strcmp(interface_name, "System.Collections.Generic.ICollection`1") == 0 ||
+        strcmp(interface_name, "System.Collections.Generic.IReadOnlyCollection`1") == 0) {
         if (strcmp(contract->name, "get_Count") == 0) {
             return "InternalGetCount";
         }
@@ -88,7 +89,8 @@ static const char *get_array_interface_bridge_name(const iron_runtime_method_t *
         }
     }
 
-    if (strcmp(interface_name, "System.Collections.Generic.IList`1") == 0) {
+    if (strcmp(interface_name, "System.Collections.Generic.IList`1") == 0 ||
+        strcmp(interface_name, "System.Collections.Generic.IReadOnlyList`1") == 0) {
         if (strcmp(contract->name, "get_Item") == 0) {
             return "InternalGetItem";
         }
@@ -179,6 +181,13 @@ static iron_runtime_method_t *find_virtual_implementation(iron_runtime_type_t *t
     }
 
     for (current = type; current; current = current->base_type) {
+        iron_runtime_method_t *explicit_implementation;
+
+        explicit_implementation = iron_type_find_method_implementation(current, contract);
+        if (explicit_implementation) {
+            return explicit_implementation;
+        }
+
         for (method_index = 0; method_index < current->method_count; method_index++) {
             iron_runtime_method_t *candidate;
             iron_runtime_method_t *bound_candidate;
@@ -519,44 +528,6 @@ static void update_method_assembly(iron_runtime_method_t *method, iron_assembly_
     }
 
     *assembly = method->declaring_type->module->assembly;
-}
-
-static void *box_constrained_value(iron_exec_context_t *ctx, iron_runtime_type_t *type, const iron_stack_value_t *value)
-{
-    const void *source;
-    void *boxed;
-    iron_size value_size;
-
-    if (!ctx || !type || !value) {
-        return NULL;
-    }
-
-    value_size = type->instance_size;
-    if (value_size == 0) {
-        return NULL;
-    }
-
-    if (value->type == IRON_VAL_PTR) {
-        source = value->value.ptr;
-    } else if (value->type == IRON_VAL_BYREF) {
-        source = value->value.byref.ptr;
-    } else if (value->type == IRON_VAL_VALUETYPE) {
-        source = value->value.obj;
-    } else {
-        source = &value->value;
-    }
-
-    if (!source) {
-        return NULL;
-    }
-
-    boxed = iron_gc_alloc_object(&ctx->gc, type, value_size);
-    if (!boxed) {
-        return NULL;
-    }
-
-    memcpy(boxed, source, value_size);
-    return boxed;
 }
 
 typedef enum iron_compare_relation {
@@ -2574,36 +2545,109 @@ static iron_result_t invoke_array_constructor(iron_exec_context_t *ctx,
     return IRON_SUCCESS;
 }
 
-void *iron_stack_value_box(iron_exec_context_t *ctx,
-                           iron_runtime_type_t *type,
-                           const iron_stack_value_t *value)
+iron_bool iron_box_storage_value(iron_exec_context_t *ctx, iron_runtime_type_t *type, const void *storage, void **result)
 {
-    void *boxed;
+    iron_runtime_type_t *argument;
 
-    if (!ctx || !type || !value || type->element_type == IRON_TYPE_VOID) {
-        return NULL;
+    if (!ctx || !type || !storage || !result) {
+        return IRON_FALSE;
     }
 
-    if (iron_type_is_managed_reference(type)) {
-        if (value->type != IRON_VAL_OBJ || !iron_managed_reference_is_assignable(ctx->domain, value->value.obj, type)) {
-            return NULL;
+    argument = iron_type_nullable_argument(type);
+    if (argument) {
+        iron_u32 has_value_offset;
+        iron_u32 value_offset;
+
+        if (!iron_type_nullable_layout(type, &has_value_offset, &value_offset)) {
+            return IRON_FALSE;
         }
-        return value->value.obj;
+        if (*((const iron_u8 *)storage + has_value_offset) == 0) {
+            *result = NULL;
+            return IRON_TRUE;
+        }
+
+        type = argument;
+        storage = (const iron_u8 *)storage + value_offset;
     }
 
-    if ((value->type == IRON_VAL_OBJ || value->type == IRON_VAL_VALUETYPE) && value->value.obj && IRON_GC_HEADER(value->value.obj)->type == type) {
-        return value->value.obj;
+    *result = iron_gc_box(ctx, type, storage);
+    return *result != NULL;
+}
+
+iron_bool iron_stack_value_box(iron_exec_context_t *ctx, iron_runtime_type_t *type, const iron_stack_value_t *value, void **result)
+{
+    iron_thread_context_t *thread;
+    iron_u32 stack_base;
+    iron_bool success;
+
+    if (!ctx || !type || !value || !result || type->element_type == IRON_TYPE_VOID) {
+        return IRON_FALSE;
+    }
+    if (iron_type_is_managed_reference(type)) {
+        *result = value->value.obj;
+        return value->type == IRON_VAL_OBJ && iron_managed_reference_is_assignable(ctx->domain, *result, type);
     }
 
-    boxed = iron_gc_alloc_object(&ctx->gc, type, iron_type_storage_size(type));
-    if (!boxed) {
-        return NULL;
-    }
-    if (!store_storage_value(boxed, boxed, type, value)) {
-        return NULL;
+    thread = iron_exec_get_current_thread(ctx);
+    if (!thread) {
+        return IRON_FALSE;
     }
 
-    return boxed;
+    /* Keep struct storage and interior references alive across the boxing allocation. */
+    stack_base = thread->eval_stack.size;
+    iron_stack_push(&thread->eval_stack, *value);
+    if (value->type == IRON_VAL_VALUETYPE || value->type == IRON_VAL_OBJ || value->type == IRON_VAL_PTR || value->type == IRON_VAL_BYREF) {
+        const void *storage;
+
+        storage = value->type == IRON_VAL_OBJ || value->type == IRON_VAL_VALUETYPE ? value->value.obj : stack_value_address(value);
+        success = iron_box_storage_value(ctx, type, storage, result);
+    } else {
+        *result = iron_gc_alloc_object(&ctx->gc, type, iron_type_storage_size(type));
+        success = *result && store_storage_value(*result, *result, type, value);
+    }
+
+    thread->eval_stack.size = stack_base;
+    return success;
+}
+
+iron_result_t iron_nullable_unbox(iron_exec_context_t *ctx, iron_runtime_type_t *type, void *object, iron_stack_value_t *result)
+{
+    iron_runtime_type_t *argument;
+    iron_thread_context_t *thread;
+    iron_u32 has_value_offset;
+    iron_u32 value_offset;
+    void *storage;
+
+    argument = iron_type_nullable_argument(type);
+    if (!argument || !result || !iron_type_nullable_layout(type, &has_value_offset, &value_offset)) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Invalid nullable type layout");
+    }
+    if (object && iron_managed_reference_get_type(ctx->domain, object) != argument) {
+        return IRON_ERROR(IRON_ERR_INVALID_CAST, "Boxed value does not match the nullable argument");
+    }
+
+    thread = iron_exec_get_current_thread(ctx);
+    if (!thread) {
+        return IRON_ERROR(IRON_ERR_INVALID_STATE, "Nullable unboxing requires a managed thread");
+    }
+
+    iron_stack_push_obj(&thread->eval_stack, object);
+    storage = iron_gc_alloc_object(&ctx->gc, type, type->instance_size);
+    iron_stack_pop(&thread->eval_stack);
+    if (!storage) {
+        return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to allocate nullable value storage");
+    }
+
+    memset(storage, 0, type->instance_size);
+    if (object) {
+        *((iron_u8 *)storage + has_value_offset) = 1;
+        memcpy((iron_u8 *)storage + value_offset, object, iron_type_storage_size(argument));
+    }
+
+    memset(result, 0, sizeof(*result));
+    result->type = IRON_VAL_VALUETYPE;
+    result->value.obj = storage;
+    return IRON_SUCCESS;
 }
 
 static iron_bool store_stack_slot_value(iron_exec_context_t *ctx,
@@ -2669,12 +2713,15 @@ static iron_bool store_stack_slot_value(iron_exec_context_t *ctx,
             return IRON_FALSE;
         }
 
-        value_copy = iron_gc_alloc_object(&ctx->gc, type, storage_size);
+        value_copy = slot->type == IRON_VAL_VALUETYPE && slot->value.obj && iron_gc_get_type(slot->value.obj) == type ? slot->value.obj : NULL;
+        if (!value_copy) {
+            value_copy = iron_gc_alloc_object(&ctx->gc, type, storage_size);
+        }
         if (!value_copy) {
             return IRON_FALSE;
         }
         if (source) {
-            memcpy(value_copy, source, storage_size);
+            memmove(value_copy, source, storage_size);
         } else {
             memset(value_copy, 0, storage_size);
         }
@@ -2683,6 +2730,45 @@ static iron_bool store_stack_slot_value(iron_exec_context_t *ctx,
         slot->value.obj = value_copy;
     }
 
+    return IRON_TRUE;
+}
+
+static iron_bool push_stack_value_copy(iron_exec_context_t *ctx, iron_eval_stack_t *stack, const iron_stack_value_t *value)
+{
+    iron_stack_value_t copy;
+
+    if (value->type != IRON_VAL_VALUETYPE || !value->value.obj) {
+        iron_stack_push(stack, *value);
+        return IRON_TRUE;
+    }
+
+    memset(&copy, 0, sizeof(copy));
+    if (!store_stack_slot_value(ctx, &copy, iron_gc_get_type(value->value.obj), value)) {
+        return IRON_FALSE;
+    }
+
+    iron_stack_push(stack, copy);
+    return IRON_TRUE;
+}
+
+static iron_bool store_variable_value(iron_exec_context_t *ctx, iron_stack_value_t *slot, const iron_stack_value_t *value)
+{
+    if (value->type == IRON_VAL_TYPEDREF) {
+        /* A CLI typed reference is the address/type pair itself, not a boxed struct. */
+        *slot = *value;
+        return IRON_TRUE;
+    }
+
+    if (slot->type == IRON_VAL_VALUETYPE && slot->value.obj) {
+        /* Keep a local/argument's storage stable while managed byrefs point into it. */
+        return store_storage_value(NULL, slot->value.obj, iron_gc_get_type(slot->value.obj), value);
+    }
+
+    if (value->type == IRON_VAL_VALUETYPE && value->value.obj) {
+        return store_stack_slot_value(ctx, slot, iron_gc_get_type(value->value.obj), value);
+    }
+
+    *slot = *value;
     return IRON_TRUE;
 }
 
@@ -3031,6 +3117,63 @@ static iron_bool find_next_leave_finally(const iron_method_body_t *body,
     return IRON_TRUE;
 }
 
+iron_bool iron_exec_enter_finally(iron_thread_context_t *thread, iron_u32 handler_index,
+                                  iron_u32 leave_offset, iron_u32 leave_target, iron_exception_t *exception)
+{
+    iron_stack_frame_t *frame;
+    iron_finally_continuation_t *continuation;
+
+    frame = thread->current_frame;
+    if (!frame->method || !frame->method->body || handler_index >= frame->method->body->exception_count) {
+        return IRON_FALSE;
+    }
+
+    continuation = (iron_finally_continuation_t *)iron_alloc(thread->exec_ctx->allocator, sizeof(*continuation));
+    if (!continuation) {
+        return IRON_FALSE;
+    }
+
+    continuation->previous = frame->finally_continuation;
+    continuation->exception = exception;
+    continuation->handler_index = handler_index;
+    continuation->leave_offset = leave_offset;
+    continuation->leave_target = leave_target;
+    frame->finally_continuation = continuation;
+    frame->exception_handler_index = handler_index;
+    frame->flags |= IRON_FRAME_FINALLY;
+    frame->ip = frame->method->body->exceptions[handler_index].handler_offset;
+
+    /* The suspended exception is rooted by the frame, not by mutable thread state.
+     * Calls and nested catches inside this finally may throw and handle other exceptions. */
+    thread->exception_state.current_exception = NULL;
+    return IRON_TRUE;
+}
+
+void iron_exec_discard_finally(iron_thread_context_t *thread, iron_u32 target_offset)
+{
+    iron_stack_frame_t *frame;
+
+    frame = thread->current_frame;
+    while (frame->finally_continuation) {
+        iron_finally_continuation_t *continuation;
+        const iron_exception_clause_t *clause;
+
+        continuation = frame->finally_continuation;
+        clause = &frame->method->body->exceptions[continuation->handler_index];
+        if (target_offset != UINT32_MAX && target_offset >= clause->handler_offset &&
+            target_offset - clause->handler_offset < clause->handler_length) {
+            break;
+        }
+
+        frame->finally_continuation = continuation->previous;
+        iron_free(thread->exec_ctx->allocator, continuation, sizeof(*continuation));
+    }
+
+    if (!frame->finally_continuation) {
+        frame->flags &= ~IRON_FRAME_FINALLY;
+    }
+}
+
 iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
 {
     iron_stack_frame_t *frame;
@@ -3091,103 +3234,84 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
             frame->ip = ip;
             return IRON_INTERP_BREAK;
 
-        /* Load argument instructions */
+        /* Loading a value type produces an independent value. Only ldloca/ldarga
+         * expose variable storage, which remains stable across subsequent stores. */
         case IRON_CEE_LDARG_0:
-            iron_stack_push(stack, frame->args[0]);
-            break;
         case IRON_CEE_LDARG_1:
-            iron_stack_push(stack, frame->args[1]);
-            break;
         case IRON_CEE_LDARG_2:
-            iron_stack_push(stack, frame->args[2]);
-            break;
         case IRON_CEE_LDARG_3:
-            iron_stack_push(stack, frame->args[3]);
-            break;
         case IRON_CEE_LDARG_S:
-            iron_stack_push(stack, frame->args[code[ip++]]);
-            break;
-        case IRON_CEE_LDARGA_S:
-            {
-                iron_u8 arg_idx;
-
-                arg_idx = code[ip++];
-                iron_stack_push_slot_byref(stack, &frame->args[arg_idx]);
-            }
-            break;
-        case IRON_CEE_STARG_S:
-            frame->args[code[ip++]] = iron_stack_pop(stack);
-            break;
         case IRON_CEE_LDARG:
-            iron_stack_push(stack, frame->args[iron_read_u16_le(code + ip)]);
-            ip += 2;
-            break;
+        case IRON_CEE_LDARGA_S:
         case IRON_CEE_LDARGA:
-            {
-                iron_u16 arg_idx;
-
-                arg_idx = iron_read_u16_le(code + ip);
-                ip += 2;
-                iron_stack_push_slot_byref(stack, &frame->args[arg_idx]);
-            }
-            break;
+        case IRON_CEE_STARG_S:
         case IRON_CEE_STARG:
-            {
-                iron_u16 arg_idx;
-
-                arg_idx = iron_read_u16_le(code + ip);
-                ip += 2;
-                frame->args[arg_idx] = iron_stack_pop(stack);
-            }
-            break;
-
-        /* Load local instructions */
         case IRON_CEE_LDLOC_0:
-            iron_stack_push(stack, frame->locals[0]);
-            break;
         case IRON_CEE_LDLOC_1:
-            iron_stack_push(stack, frame->locals[1]);
-            break;
         case IRON_CEE_LDLOC_2:
-            iron_stack_push(stack, frame->locals[2]);
-            break;
         case IRON_CEE_LDLOC_3:
-            iron_stack_push(stack, frame->locals[3]);
-            break;
         case IRON_CEE_LDLOC_S:
-            iron_stack_push(stack, frame->locals[code[ip++]]);
-            break;
         case IRON_CEE_LDLOC:
-            iron_stack_push(stack, frame->locals[iron_read_u16_le(code + ip)]);
-            ip += 2;
-            break;
         case IRON_CEE_LDLOCA_S:
-            iron_stack_push_slot_byref(stack, &frame->locals[code[ip++]]);
-            break;
         case IRON_CEE_LDLOCA:
-            iron_stack_push_slot_byref(stack, &frame->locals[iron_read_u16_le(code + ip)]);
-            ip += 2;
-            break;
-
-        /* Store local instructions */
         case IRON_CEE_STLOC_0:
-            frame->locals[0] = iron_stack_pop(stack);
-            break;
         case IRON_CEE_STLOC_1:
-            frame->locals[1] = iron_stack_pop(stack);
-            break;
         case IRON_CEE_STLOC_2:
-            frame->locals[2] = iron_stack_pop(stack);
-            break;
         case IRON_CEE_STLOC_3:
-            frame->locals[3] = iron_stack_pop(stack);
-            break;
         case IRON_CEE_STLOC_S:
-            frame->locals[code[ip++]] = iron_stack_pop(stack);
-            break;
         case IRON_CEE_STLOC:
-            frame->locals[iron_read_u16_le(code + ip)] = iron_stack_pop(stack);
-            ip += 2;
+            {
+                iron_u32 index;
+                iron_bool argument;
+                iron_bool address;
+                iron_bool store;
+                iron_stack_value_t *slot;
+
+                argument = opcode == IRON_CEE_LDARG || opcode == IRON_CEE_LDARG_S || opcode == IRON_CEE_LDARGA || opcode == IRON_CEE_LDARGA_S ||
+                           opcode == IRON_CEE_STARG || opcode == IRON_CEE_STARG_S || (opcode >= IRON_CEE_LDARG_0 && opcode <= IRON_CEE_LDARG_3);
+                address = opcode == IRON_CEE_LDARGA || opcode == IRON_CEE_LDARGA_S || opcode == IRON_CEE_LDLOCA || opcode == IRON_CEE_LDLOCA_S;
+                store = opcode == IRON_CEE_STARG || opcode == IRON_CEE_STARG_S || opcode == IRON_CEE_STLOC || opcode == IRON_CEE_STLOC_S ||
+                        (opcode >= IRON_CEE_STLOC_0 && opcode <= IRON_CEE_STLOC_3);
+
+                if (opcode >= IRON_CEE_LDARG_0 && opcode <= IRON_CEE_LDARG_3) {
+                    index = opcode - IRON_CEE_LDARG_0;
+                } else if (opcode >= IRON_CEE_LDLOC_0 && opcode <= IRON_CEE_LDLOC_3) {
+                    index = opcode - IRON_CEE_LDLOC_0;
+                } else if (opcode >= IRON_CEE_STLOC_0 && opcode <= IRON_CEE_STLOC_3) {
+                    index = opcode - IRON_CEE_STLOC_0;
+                } else if (opcode == IRON_CEE_LDARG || opcode == IRON_CEE_LDARGA || opcode == IRON_CEE_STARG ||
+                           opcode == IRON_CEE_LDLOC || opcode == IRON_CEE_LDLOCA || opcode == IRON_CEE_STLOC) {
+                    if (ip > frame->code_size || frame->code_size - ip < 2) {
+                        return IRON_INTERP_ERROR;
+                    }
+                    index = iron_read_u16_le(code + ip);
+                    ip += 2;
+                } else {
+                    if (ip >= frame->code_size) {
+                        return IRON_INTERP_ERROR;
+                    }
+                    index = code[ip++];
+                }
+
+                if (index >= (argument ? frame->arg_count : frame->local_count)) {
+                    IRON_ERROR_EXEC("Variable index %u is out of bounds", index);
+                    return IRON_INTERP_ERROR;
+                }
+
+                slot = argument ? &frame->args[index] : &frame->locals[index];
+                if (store) {
+                    if (stack->size <= frame->stack_base || !store_variable_value(thread->exec_ctx, slot, &stack->data[stack->size - 1])) {
+                        frame->ip = ip;
+                        return IRON_INTERP_ERROR;
+                    }
+                    iron_stack_pop(stack);
+                } else if (address) {
+                    iron_stack_push_slot_byref(stack, slot);
+                } else if (!push_stack_value_copy(thread->exec_ctx, stack, slot)) {
+                    frame->ip = ip;
+                    return IRON_INTERP_ERROR;
+                }
+            }
             break;
 
         case IRON_CEE_LOCALLOC:
@@ -3273,7 +3397,10 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
 
         /* Stack manipulation */
         case IRON_CEE_DUP:
-            iron_stack_dup(stack);
+            if (stack->size <= frame->stack_base || !push_stack_value_copy(thread->exec_ctx, stack, &stack->data[stack->size - 1])) {
+                frame->ip = ip;
+                return IRON_INTERP_ERROR;
+            }
             break;
         case IRON_CEE_POP:
             iron_stack_pop(stack);
@@ -3617,15 +3744,8 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
                         }
 
                         iron_stack_push_obj(stack, object);
-                    } else if ((value.type == IRON_VAL_OBJ || value.type == IRON_VAL_VALUETYPE) && object && IRON_GC_HEADER(object)->type == type) {
-                        iron_stack_push_obj(stack, object);
                     } else {
-                        const void *source;
-
-                        source = value.type == IRON_VAL_PTR || value.type == IRON_VAL_BYREF ? stack_value_address(&value) :
-                                 (value.type == IRON_VAL_VALUETYPE ? value.value.obj : (const void *)&value.value);
-                        object = iron_gc_box(thread->exec_ctx, type, source);
-                        if (!object) {
+                        if (!iron_stack_value_box(thread->exec_ctx, type, &value, &object)) {
                             frame->ip = ip;
                             return IRON_INTERP_ERROR;
                         }
@@ -3641,6 +3761,30 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
 
                     iron_stack_push_obj(stack, object);
                 } else if (opcode == IRON_CEE_UNBOX || opcode == IRON_CEE_UNBOX_ANY) {
+                    iron_runtime_type_t *nullable_argument;
+
+                    nullable_argument = iron_type_nullable_argument(type);
+                    if (nullable_argument) {
+                        iron_result_t unbox_result;
+
+                        unbox_result = convert_managed_call_error(thread, iron_nullable_unbox(thread->exec_ctx, type, object, &value));
+                        if (!IRON_RESULT_OK(unbox_result)) {
+                            frame->ip = ip;
+                            return unbox_result.error == IRON_ERR_EXCEPTION ? IRON_INTERP_EXCEPTION : IRON_INTERP_ERROR;
+                        }
+
+                        if (opcode == IRON_CEE_UNBOX) {
+                            void *storage;
+
+                            storage = value.value.obj;
+                            memset(&value, 0, sizeof(value));
+                            value.type = IRON_VAL_BYREF;
+                            value.value.byref.ptr = storage;
+                        }
+                        iron_stack_push(stack, value);
+                        break;
+                    }
+
                     if (!object) {
                         iron_throw_null_reference(thread);
                         frame->ip = ip;
@@ -3656,7 +3800,18 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
                     if (opcode == IRON_CEE_UNBOX) {
                         iron_stack_push_ptr(stack, object);
                     } else if (type->kind == IRON_KIND_VALUETYPE || type->kind == IRON_KIND_ENUM) {
-                        if (!push_storage_value(thread->exec_ctx, stack, object, type)) {
+                        iron_bool loaded;
+                        iron_u32 value_index;
+
+                        value_index = stack->size;
+                        iron_stack_push_obj(stack, object);
+                        loaded = push_storage_value(thread->exec_ctx, stack, object, type);
+                        if (loaded) {
+                            stack->data[value_index] = iron_stack_pop(stack);
+                        } else {
+                            stack->size = value_index;
+                        }
+                        if (!loaded) {
                             frame->ip = ip;
                             return IRON_INTERP_ERROR;
                         }
@@ -4161,8 +4316,7 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
                             (!implementation || target_method->declaring_type != runtime_type)) {
                             void *boxed;
 
-                            boxed = box_constrained_value(thread->exec_ctx, runtime_type, &this_val);
-                            if (!boxed) {
+                            if (!iron_stack_value_box(thread->exec_ctx, runtime_type, &this_val, &boxed)) {
                                 frame->flags &= ~IRON_FRAME_CONSTRAINED;
                                 frame->constrained_type = NULL;
                                 return IRON_INTERP_ERROR;
@@ -5805,81 +5959,38 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
         }
 
         case IRON_CEE_LEAVE:
+        case IRON_CEE_LEAVE_S:
         {
             iron_i32 offset;
             iron_u32 target;
+            iron_u32 operand_size;
+            iron_u32 leave_offset;
+            iron_u32 finally_index;
 
-            offset = (iron_i32)((iron_i16)(code[ip] | (code[ip + 1] << 8) |
-                     (code[ip + 2] << 16) | (code[ip + 3] << 24)));
-            ip += 4;
-            target = (iron_u32)((iron_i32)ip + offset);
-
-            /* Clear the evaluation stack back to frame's stack base */
-            stack->size = frame->stack_base;
-
-            /* Clear any pending exception (leave exits protected regions) */
-            thread->exception_state.current_exception = NULL;
-
-            /* Execute any finally blocks that cover the current IP but not the target */
-            if (frame->method && frame->method->body) {
-                iron_method_body_t *body = frame->method->body;
-                iron_u32 leave_ip = ip - 4 - 1; /* IP of the leave instruction */
-                iron_u32 finally_index;
-
-                frame->leave_target = target;
-                frame->leave_search_offset = leave_ip;
-                frame->leave_finally_try_length = 0;
-                if (find_next_leave_finally(body, leave_ip, target, 0, &finally_index)) {
-                    iron_exception_clause_t *clause;
-
-                    clause = &body->exceptions[finally_index];
-                    frame->exception_handler_index = finally_index;
-                    frame->leave_finally_try_length = clause->try_length;
-                    frame->flags |= IRON_FRAME_FINALLY;
-                    frame->ip = clause->handler_offset;
-                    return IRON_INTERP_OK;
-                }
+            operand_size = opcode == IRON_CEE_LEAVE ? 4 : 1;
+            if (ip > frame->code_size || operand_size > frame->code_size - ip) {
+                IRON_ERROR_EXEC("Truncated leave operand");
+                return IRON_INTERP_ERROR;
             }
 
-            /* No finally blocks to execute - jump directly to target */
-            ip = target;
-            break;
-        }
+            leave_offset = ip - 1;
+            offset = opcode == IRON_CEE_LEAVE ? iron_read_i32_le(code + ip) : (iron_i32)(iron_i8)code[ip];
+            ip += operand_size;
+            if (!checked_instruction_target(ip, offset, frame->code_size, &target)) {
+                IRON_ERROR_EXEC("leave target is outside the method body");
+                return IRON_INTERP_ERROR;
+            }
 
-        case IRON_CEE_LEAVE_S:
-        {
-            iron_i8 offset;
-            iron_u32 target;
-
-            offset = (iron_i8)code[ip];
-            ip += 1;
-            target = (iron_u32)((iron_i32)ip + (iron_i32)offset);
-
-            /* Clear the evaluation stack back to frame's stack base */
             stack->size = frame->stack_base;
-
-            /* Clear any pending exception */
             thread->exception_state.current_exception = NULL;
 
-            /* Execute any finally blocks */
-            if (frame->method && frame->method->body) {
-                iron_method_body_t *body = frame->method->body;
-                iron_u32 leave_ip = ip - 1 - 1; /* IP of the leave.s instruction */
-                iron_u32 finally_index;
-
-                frame->leave_target = target;
-                frame->leave_search_offset = leave_ip;
-                frame->leave_finally_try_length = 0;
-                if (find_next_leave_finally(body, leave_ip, target, 0, &finally_index)) {
-                    iron_exception_clause_t *clause;
-
-                    clause = &body->exceptions[finally_index];
-                    frame->exception_handler_index = finally_index;
-                    frame->leave_finally_try_length = clause->try_length;
-                    frame->flags |= IRON_FRAME_FINALLY;
-                    frame->ip = clause->handler_offset;
-                    return IRON_INTERP_OK;
+            if (frame->method && find_next_leave_finally(frame->method->body, leave_offset, target, 0, &finally_index)) {
+                if (!iron_exec_enter_finally(thread, finally_index, leave_offset, target, NULL)) {
+                    IRON_ERROR_EXEC("Failed to allocate finally continuation");
+                    return IRON_INTERP_ERROR;
                 }
+
+                return IRON_INTERP_OK;
             }
 
             ip = target;
@@ -5888,35 +5999,49 @@ iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread)
 
         case IRON_CEE_ENDFINALLY:
         {
-            frame->flags &= ~IRON_FRAME_FINALLY;
+            iron_finally_continuation_t *continuation;
+            const iron_exception_clause_t *clause;
+            iron_exception_t *exception;
+            iron_u32 finally_index;
 
-            /* Check if there's a pending exception to continue unwinding */
-            if (thread->exception_state.current_exception) {
-                /* Continue exception unwinding */
+            continuation = frame->finally_continuation;
+            if (!continuation) {
+                IRON_ERROR_EXEC("endfinally executed without an active finally or fault handler");
+                return IRON_INTERP_ERROR;
+            }
+
+            clause = &frame->method->body->exceptions[continuation->handler_index];
+            if (ip - 1 < clause->handler_offset || ip - 1 - clause->handler_offset >= clause->handler_length) {
+                IRON_ERROR_EXEC("endfinally executed outside its active handler");
+                return IRON_INTERP_ERROR;
+            }
+
+            stack->size = frame->stack_base;
+            if (!continuation->exception && find_next_leave_finally(frame->method->body, continuation->leave_offset,
+                                                                     continuation->leave_target, clause->try_length, &finally_index)) {
+                continuation->handler_index = finally_index;
+                frame->exception_handler_index = finally_index;
+                ip = frame->method->body->exceptions[finally_index].handler_offset;
+                break;
+            }
+
+            exception = continuation->exception;
+            frame->finally_continuation = continuation->previous;
+            if (!exception) {
+                ip = continuation->leave_target;
+            }
+
+            iron_free(thread->exec_ctx->allocator, continuation, sizeof(*continuation));
+            if (!frame->finally_continuation) {
+                frame->flags &= ~IRON_FRAME_FINALLY;
+            }
+
+            thread->exception_state.current_exception = exception;
+            if (exception) {
                 frame->ip = ip;
                 return IRON_INTERP_EXCEPTION;
             }
 
-            if (frame->method && frame->method->body) {
-                iron_u32 finally_index;
-
-                if (find_next_leave_finally(frame->method->body,
-                                            frame->leave_search_offset,
-                                            frame->leave_target,
-                                            frame->leave_finally_try_length,
-                                            &finally_index)) {
-                    iron_exception_clause_t *clause;
-
-                    clause = &frame->method->body->exceptions[finally_index];
-                    frame->exception_handler_index = finally_index;
-                    frame->leave_finally_try_length = clause->try_length;
-                    frame->flags |= IRON_FRAME_FINALLY;
-                    ip = clause->handler_offset;
-                    break;
-                }
-            }
-
-            ip = frame->leave_target;
             break;
         }
 
@@ -6127,6 +6252,9 @@ static iron_result_t convert_managed_call_error(iron_thread_context_t *thread, i
             break;
         case IRON_ERR_INVALID_CAST:
             exception_type = "System.InvalidCastException";
+            break;
+        case IRON_ERR_ARRAY_RANK:
+            exception_type = "System.RankException";
             break;
         case IRON_ERR_DIVIDE_BY_ZERO:
             exception_type = "System.DivideByZeroException";

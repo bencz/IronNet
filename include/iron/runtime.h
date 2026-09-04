@@ -303,6 +303,8 @@ struct iron_runtime_type {
 };
 
 /* Type API */
+IRON_API iron_runtime_type_t *iron_type_nullable_argument(const iron_runtime_type_t *type);
+IRON_API iron_bool iron_type_nullable_layout(iron_runtime_type_t *type, iron_u32 *has_value_offset, iron_u32 *value_offset);
 IRON_API iron_runtime_type_t *iron_type_resolve_token(iron_module_t *module,
                                                        iron_token_t token);
 IRON_API iron_runtime_type_t *iron_type_make_array(iron_domain_t *domain,
@@ -328,6 +330,7 @@ IRON_API iron_result_t iron_generic_parameter_get_constraints(iron_runtime_type_
                                                                iron_u32 *constraint_count);
 IRON_API iron_bool iron_type_is_managed_reference(const iron_runtime_type_t *type);
 IRON_API iron_bool iron_type_is_assignable_to(iron_runtime_type_t *source, iron_runtime_type_t *target);
+IRON_API iron_runtime_method_t *iron_type_find_method_implementation(iron_runtime_type_t *type, const iron_runtime_method_t *contract);
 IRON_API iron_bool iron_type_contains_generic_parameters(const iron_runtime_type_t *type);
 IRON_API iron_size iron_type_storage_size(const iron_runtime_type_t *type);
 IRON_API iron_result_t iron_type_compute_layout(iron_runtime_type_t *type);

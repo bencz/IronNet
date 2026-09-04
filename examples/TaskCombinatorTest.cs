@@ -28,7 +28,7 @@ public static class TaskCombinatorTest
         }
         catch (AggregateException exception)
         {
-            canceled = exception.InnerExceptions.Length == 1 && exception.InnerExceptions[0] is TaskCanceledException;
+            canceled = exception.InnerExceptions.Count == 1 && exception.InnerExceptions[0] is TaskCanceledException;
         }
 
         Require(canceled && cancellable.IsCanceled, "An infinite cancellable delay did not transition to Canceled.");
@@ -85,13 +85,13 @@ public static class TaskCombinatorTest
         }
         catch (AggregateException exception)
         {
-            aggregateWasFlat = exception.InnerExceptions.Length == 2 &&
+            aggregateWasFlat = exception.InnerExceptions.Count == 2 &&
                                object.ReferenceEquals(exception.InnerExceptions[0], firstFailure) &&
                                object.ReferenceEquals(exception.InnerExceptions[1], secondFailure);
         }
 
         Require(aggregateWasFlat, "WhenAll did not retain all failures without nested aggregation.");
-        Require(combined.Exception.InnerExceptions.Length == 2, "Task.Exception lost WhenAll failures.");
+        Require(combined.Exception.InnerExceptions.Count == 2, "Task.Exception lost WhenAll failures.");
         Require(ObserveAwaitedFailure(combined).Result == "first", "Awaiting WhenAll did not throw its first underlying exception.");
 
         CancellationTokenSource source = new CancellationTokenSource();
@@ -228,7 +228,7 @@ public static class TaskCombinatorTest
         }
         catch (AggregateException exception)
         {
-            failurePreserved = exception.InnerExceptions.Length == 1 && object.ReferenceEquals(exception.InnerExceptions[0], failure);
+            failurePreserved = exception.InnerExceptions.Count == 1 && object.ReferenceEquals(exception.InnerExceptions[0], failure);
         }
         Require(failurePreserved, "Unwrap did not preserve the inner exception.");
 
@@ -242,7 +242,7 @@ public static class TaskCombinatorTest
         }
         catch (AggregateException exception)
         {
-            nullRejected = exception.InnerExceptions.Length == 1 && exception.InnerExceptions[0] is InvalidOperationException;
+            nullRejected = exception.InnerExceptions.Count == 1 && exception.InnerExceptions[0] is InvalidOperationException;
         }
         Require(nullRejected, "Unwrap accepted a null inner task.");
 

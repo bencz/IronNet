@@ -84,25 +84,25 @@ namespace System.Threading
     public struct CancellationTokenRegistration : IDisposable, IEquatable<CancellationTokenRegistration>
     {
         private readonly CancellationTokenSource _source;
-        private readonly int _id;
+        private readonly CancellationTokenSource.CallbackRegistration _registration;
 
-        internal CancellationTokenRegistration(CancellationTokenSource source, int id)
+        internal CancellationTokenRegistration(CancellationTokenSource source, CancellationTokenSource.CallbackRegistration registration)
         {
             _source = source;
-            _id = id;
+            _registration = registration;
         }
 
         public void Dispose()
         {
             if (_source != null)
             {
-                _source.Unregister(_id);
+                _source.Unregister(_registration);
             }
         }
 
         public bool Equals(CancellationTokenRegistration other)
         {
-            return object.ReferenceEquals(_source, other._source) && _id == other._id;
+            return object.ReferenceEquals(_source, other._source) && object.ReferenceEquals(_registration, other._registration);
         }
 
         public override bool Equals(object obj)
@@ -112,7 +112,7 @@ namespace System.Threading
 
         public override int GetHashCode()
         {
-            return (_source == null ? 0 : _source.GetHashCode()) ^ _id;
+            return _registration == null ? 0 : _registration.GetHashCode();
         }
 
         public static bool operator ==(CancellationTokenRegistration left, CancellationTokenRegistration right)
@@ -128,12 +128,12 @@ namespace System.Threading
 
     public class CancellationTokenSource : IDisposable
     {
-        private sealed class CallbackRegistration
+        internal sealed class CallbackRegistration
         {
-            public int Id;
             public Action<object> Callback;
             public object State;
             public bool Active;
+            public Thread ExecutingThread;
         }
 
         private readonly object _gate = new object();
@@ -142,7 +142,6 @@ namespace System.Threading
         private ManualResetEvent _event;
         private volatile bool _cancellationRequested;
         private bool _disposed;
-        private int _nextRegistrationId;
         private int _cancelAfterVersion;
 
         internal static readonly ManualResetEvent NeverCanceledEvent = new ManualResetEvent(false);
@@ -202,11 +201,21 @@ namespace System.Threading
 
         public void Cancel(bool throwOnFirstException)
         {
+            Cancel(throwOnFirstException, true);
+        }
+
+        private void Cancel(bool throwOnFirstException, bool throwIfDisposed)
+        {
             CallbackRegistration[] callbacks;
 
             Monitor.Enter(_gate);
             try
             {
+                if (_disposed && !throwIfDisposed)
+                {
+                    return;
+                }
+
                 ThrowIfDisposed();
                 callbacks = BeginCancellation();
                 if (callbacks == null)
@@ -241,33 +250,86 @@ namespace System.Threading
             return callbacks;
         }
 
-        private static void ExecuteCallbacks(CallbackRegistration[] callbacks, bool throwOnFirstException)
+        private void ExecuteCallbacks(CallbackRegistration[] callbacks, bool throwOnFirstException)
         {
             List<Exception> exceptions = null;
-            for (int i = callbacks.Length - 1; i >= 0; i--)
+            try
             {
-                if (!callbacks[i].Active)
+                for (int i = callbacks.Length - 1; i >= 0; i--)
                 {
-                    continue;
-                }
+                    CallbackRegistration registration = callbacks[i];
+                    Action<object> callback;
+                    object state;
 
-                callbacks[i].Active = false;
+                    Monitor.Enter(_gate);
+                    try
+                    {
+                        if (!registration.Active)
+                        {
+                            continue;
+                        }
+
+                        // Claim the callback under the same lock used by registration disposal.
+                        registration.Active = false;
+                        registration.ExecutingThread = Thread.CurrentThread;
+                        callback = registration.Callback;
+                        state = registration.State;
+                    }
+                    finally
+                    {
+                        Monitor.Exit(_gate);
+                    }
+
+                    try
+                    {
+                        callback(state);
+                    }
+                    catch (Exception exception)
+                    {
+                        if (throwOnFirstException)
+                        {
+                            throw;
+                        }
+                        if (exceptions == null)
+                        {
+                            exceptions = new List<Exception>();
+                        }
+
+                        exceptions.Add(exception);
+                    }
+                    finally
+                    {
+                        Monitor.Enter(_gate);
+                        try
+                        {
+                            registration.ExecutingThread = null;
+                            registration.Callback = null;
+                            registration.State = null;
+                            Monitor.PulseAll(_gate);
+                        }
+                        finally
+                        {
+                            Monitor.Exit(_gate);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                // Cancel(true) can abandon pending callbacks; do not retain their captured state.
+                Monitor.Enter(_gate);
                 try
                 {
-                    callbacks[i].Callback(callbacks[i].State);
+                    for (int i = 0; i < callbacks.Length; i++)
+                    {
+                        callbacks[i].Active = false;
+                        callbacks[i].Callback = null;
+                        callbacks[i].State = null;
+                    }
                 }
-                catch (Exception exception)
+                finally
                 {
-                    if (throwOnFirstException)
-                    {
-                        throw;
-                    }
-                    if (exceptions == null)
-                    {
-                        exceptions = new List<Exception>();
-                    }
-
-                    exceptions.Add(exception);
+                    Monitor.Exit(_gate);
                 }
             }
 
@@ -289,6 +351,11 @@ namespace System.Threading
             try
             {
                 ThrowIfDisposed();
+                if (_cancellationRequested)
+                {
+                    return;
+                }
+
                 version = ++_cancelAfterVersion;
             }
             finally
@@ -365,7 +432,7 @@ namespace System.Threading
                 if (tokens[i].CanBeCanceled)
                 {
                     CancellationTokenRegistration registration = tokens[i].Register(
-                        state => ((CancellationTokenSource)state).Cancel(),
+                        state => ((CancellationTokenSource)state).Cancel(false, false),
                         linkedSource);
                     linkedSource._linkedRegistrations.Add(registration);
                 }
@@ -377,22 +444,21 @@ namespace System.Threading
         internal CancellationTokenRegistration Register(Action<object> callback, object state)
         {
             bool invokeImmediately;
-            int id = 0;
+            CallbackRegistration registration = null;
 
-            ThrowIfDisposed();
             Monitor.Enter(_gate);
             try
             {
+                ThrowIfDisposed();
                 invokeImmediately = _cancellationRequested;
                 if (!invokeImmediately)
                 {
-                    id = ++_nextRegistrationId;
-                    _callbacks.Add(new CallbackRegistration {
-                        Id = id,
+                    registration = new CallbackRegistration {
                         Callback = callback,
                         State = state,
                         Active = true
-                    });
+                    };
+                    _callbacks.Add(registration);
                 }
             }
             finally
@@ -406,12 +472,12 @@ namespace System.Threading
                 return default(CancellationTokenRegistration);
             }
 
-            return new CancellationTokenRegistration(this, id);
+            return new CancellationTokenRegistration(this, registration);
         }
 
-        internal void Unregister(int id)
+        internal void Unregister(CallbackRegistration registration)
         {
-            if (id == 0)
+            if (registration == null)
             {
                 return;
             }
@@ -419,14 +485,19 @@ namespace System.Threading
             Monitor.Enter(_gate);
             try
             {
-                for (int i = 0; i < _callbacks.Count; i++)
+                if (registration.Active)
                 {
-                    if (_callbacks[i].Id == id)
-                    {
-                        _callbacks[i].Active = false;
-                        _callbacks.RemoveAt(i);
-                        return;
-                    }
+                    registration.Active = false;
+                    registration.Callback = null;
+                    registration.State = null;
+                    _callbacks.Remove(registration);
+                }
+
+                // A callback may dispose its own registration, including through a linked source.
+                Thread currentThread = Thread.CurrentThread;
+                while (registration.ExecutingThread != null && !object.ReferenceEquals(registration.ExecutingThread, currentThread))
+                {
+                    Monitor.Wait(_gate);
                 }
             }
             finally
@@ -452,6 +523,13 @@ namespace System.Threading
 
                 _disposed = true;
                 _cancelAfterVersion++;
+                for (int i = 0; i < _callbacks.Count; i++)
+                {
+                    _callbacks[i].Active = false;
+                    _callbacks[i].Callback = null;
+                    _callbacks[i].State = null;
+                }
+
                 _callbacks.Clear();
             }
             finally

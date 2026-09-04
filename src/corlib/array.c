@@ -235,6 +235,10 @@ iron_result_t icall_Array_Copy(
     iron_i32 length;
     iron_u32 src_len;
     iron_u32 dst_len;
+    iron_i32 src_lower_bound;
+    iron_i32 dst_lower_bound;
+    iron_i64 src_offset;
+    iron_i64 dst_offset;
     iron_runtime_type_t *src_element_type;
     iron_runtime_type_t *dst_element_type;
     iron_size src_element_size;
@@ -265,12 +269,31 @@ iron_result_t icall_Array_Copy(
     if (!src_arr || !dst_arr) {
         return IRON_ERROR(IRON_ERR_ARGUMENT_NULL, "Source and destination arrays cannot be null");
     }
+    if (iron_array_get_rank(src_arr) != iron_array_get_rank(dst_arr)) {
+        return IRON_ERROR(IRON_ERR_ARRAY_RANK, "Source and destination arrays must have the same rank");
+    }
+    if (length < 0) {
+        return IRON_ERROR(IRON_ERR_ARGUMENT_OUT_OF_RANGE, "Length must be non-negative");
+    }
+
+    if (!iron_array_get_lower_bound(src_arr, 0, &src_lower_bound) || !iron_array_get_lower_bound(dst_arr, 0, &dst_lower_bound)) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "Invalid array bounds");
+    }
+    if (arg_count == 3) {
+        src_index = src_lower_bound;
+        dst_index = dst_lower_bound;
+    }
+
+    src_offset = (iron_i64)src_index - src_lower_bound;
+    dst_offset = (iron_i64)dst_index - dst_lower_bound;
+    if (src_offset < 0 || dst_offset < 0) {
+        return IRON_ERROR(IRON_ERR_ARGUMENT_OUT_OF_RANGE, "Array indices cannot precede their lower bounds");
+    }
 
     src_len = iron_array_get_length(src_arr);
     dst_len = iron_array_get_length(dst_arr);
-    if (src_index < 0 || dst_index < 0 || length < 0 || (iron_u32)src_index > src_len || (iron_u32)dst_index > dst_len ||
-        (iron_u32)length > src_len - (iron_u32)src_index || (iron_u32)length > dst_len - (iron_u32)dst_index) {
-        return IRON_ERROR(IRON_ERR_INDEX_OUT_OF_RANGE, "ArgumentException: length exceeds array bounds");
+    if (src_offset > src_len || dst_offset > dst_len || length > (iron_i64)src_len - src_offset || length > (iron_i64)dst_len - dst_offset) {
+        return IRON_ERROR(IRON_ERR_INVALID_ARGUMENT, "The copy range exceeds the array bounds");
     }
 
     src_element_type = iron_array_get_element_type(src_arr);
@@ -291,8 +314,8 @@ iron_result_t icall_Array_Copy(
             return IRON_ERROR(IRON_ERR_INVALID_CAST, "ArrayTypeMismatchException");
         }
 
-        source = (const iron_u8 *)iron_array_get_const_data(src_arr) + (iron_size)(iron_u32)src_index * src_element_size;
-        destination = (iron_u8 *)iron_array_get_data(dst_arr) + (iron_size)(iron_u32)dst_index * dst_element_size;
+        source = (const iron_u8 *)iron_array_get_const_data(src_arr) + (iron_size)src_offset * src_element_size;
+        destination = (iron_u8 *)iron_array_get_data(dst_arr) + (iron_size)dst_offset * dst_element_size;
         copy_size = src_element_size * (iron_size)(iron_u32)length;
         iron_memmove(destination, source, copy_size);
         return IRON_SUCCESS;
@@ -302,14 +325,8 @@ iron_result_t icall_Array_Copy(
         void **source;
         void **destination;
 
-        source = (void **)iron_array_get_data(src_arr) + src_index;
-        destination = (void **)iron_array_get_data(dst_arr) + dst_index;
-
-        for (element_index = 0; element_index < (iron_u32)length; element_index++) {
-            if (source[element_index] && dst_element_type && !iron_managed_reference_is_assignable(ctx->domain, source[element_index], dst_element_type)) {
-                return IRON_ERROR(IRON_ERR_INVALID_CAST, "ArrayTypeMismatchException");
-            }
-        }
+        source = (void **)iron_array_get_data(src_arr) + (iron_size)src_offset;
+        destination = (void **)iron_array_get_data(dst_arr) + (iron_size)dst_offset;
 
         if (src_arr == dst_arr) {
             copy_size = sizeof(void *) * (iron_size)(iron_u32)length;
@@ -319,6 +336,11 @@ iron_result_t icall_Array_Copy(
             }
         } else {
             for (element_index = 0; element_index < (iron_u32)length; element_index++) {
+                /* Array.Copy can fail after copying a compatible prefix when narrowing references. */
+                if (source[element_index] && dst_element_type && !iron_managed_reference_is_assignable(ctx->domain, source[element_index], dst_element_type)) {
+                    return IRON_ERROR(IRON_ERR_INVALID_CAST, "The destination array cannot store a source element");
+                }
+
                 destination[element_index] = source[element_index];
                 iron_gc_write_barrier(dst_arr, &destination[element_index], destination[element_index]);
             }
@@ -338,6 +360,8 @@ iron_result_t icall_Array_Clear(
     iron_i32 index;
     iron_i32 length;
     iron_u32 array_length;
+    iron_i32 lower_bound;
+    iron_i64 offset;
     iron_size element_size;
     iron_u8 *destination;
 
@@ -356,12 +380,17 @@ iron_result_t icall_Array_Clear(
     }
 
     array_length = iron_array_get_length(array);
-    if (index < 0 || length < 0 || (iron_u32)index > array_length || (iron_u32)length > array_length - (iron_u32)index) {
-        return IRON_ERROR(IRON_ERR_INDEX_OUT_OF_RANGE, "ArgumentException: range exceeds array bounds");
+    if (!iron_array_get_lower_bound(array, 0, &lower_bound)) {
+        return IRON_ERROR(IRON_ERR_INDEX_OUT_OF_RANGE, "Invalid array bounds");
+    }
+
+    offset = (iron_i64)index - lower_bound;
+    if (offset < 0 || offset > array_length || length < 0 || length > (iron_i64)array_length - offset) {
+        return IRON_ERROR(IRON_ERR_INDEX_OUT_OF_RANGE, "The clear range exceeds the array bounds");
     }
 
     element_size = iron_array_get_element_size(array);
-    destination = (iron_u8 *)iron_array_get_data(array) + (iron_size)(iron_u32)index * element_size;
+    destination = (iron_u8 *)iron_array_get_data(array) + (iron_size)offset * element_size;
     iron_memset(destination, 0, (iron_size)(iron_u32)length * element_size);
     return IRON_SUCCESS;
 }
@@ -393,8 +422,7 @@ iron_result_t icall_Array_GetValue(
 
     result->type = IRON_VAL_OBJ;
     if (!iron_type_is_managed_reference(element_type)) {
-        result->value.obj = iron_gc_box(ctx, element_type, element_storage);
-        if (!result->value.obj) {
+        if (!iron_box_storage_value(ctx, element_type, element_storage, &result->value.obj)) {
             return IRON_ERROR(IRON_ERR_OUT_OF_MEMORY, "Failed to box array element");
         }
     } else {
@@ -431,10 +459,22 @@ iron_result_t icall_Array_SetValue(
         return storage_result;
     }
 
-    if (!iron_type_is_managed_reference(element_type)) {
+    if (!value) {
+        iron_memset(element_storage, 0, iron_array_get_element_size(arr));
+    } else if (iron_type_nullable_argument(element_type)) {
+        iron_stack_value_t nullable_value;
+
+        storage_result = iron_nullable_unbox(ctx, element_type, value, &nullable_value);
+        if (!IRON_RESULT_OK(storage_result)) {
+            return storage_result;
+        }
+        if (!iron_stack_value_store_to_storage(arr, element_storage, element_type, &nullable_value)) {
+            return IRON_ERROR(IRON_ERR_INVALID_CAST, "Failed to store a nullable array element");
+        }
+    } else if (!iron_type_is_managed_reference(element_type)) {
         void *unboxed;
 
-        if (!value || iron_managed_reference_get_type(ctx->domain, value) != element_type) {
+        if (iron_managed_reference_get_type(ctx->domain, value) != element_type) {
             return IRON_ERROR(IRON_ERR_INVALID_CAST, "ArrayTypeMismatchException");
         }
 

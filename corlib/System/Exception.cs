@@ -26,11 +26,27 @@ namespace System
             _innerException = innerException;
         }
 
-        public virtual string Message => _message ?? "An error occurred.";
+        public virtual string Message => _message ?? "Exception of type '" + GetType().FullName + "' was thrown.";
 
         public Exception InnerException => _innerException;
 
         public virtual string StackTrace => _stackTrace;
+
+        public new Type GetType()
+        {
+            return base.GetType();
+        }
+
+        public virtual Exception GetBaseException()
+        {
+            Exception exception = this;
+            while (exception.InnerException != null)
+            {
+                exception = exception.InnerException;
+            }
+
+            return exception;
+        }
 
         public override string ToString()
         {
@@ -214,78 +230,4 @@ namespace System
         public Threading.CancellationToken CancellationToken => _cancellationToken;
     }
 
-    public class AggregateException : Exception
-    {
-        private readonly Exception[] _innerExceptions;
-
-        public AggregateException() : this("One or more errors occurred.", new Exception[0])
-        {
-        }
-
-        public AggregateException(params Exception[] innerExceptions) : this("One or more errors occurred.", innerExceptions)
-        {
-        }
-
-        public AggregateException(string message, params Exception[] innerExceptions) : base(message, GetFirstException(innerExceptions))
-        {
-            if (innerExceptions == null)
-            {
-                throw new ArgumentNullException("innerExceptions");
-            }
-
-            _innerExceptions = new Exception[innerExceptions.Length];
-            for (int i = 0; i < innerExceptions.Length; i++)
-            {
-                if (innerExceptions[i] == null)
-                {
-                    throw new ArgumentException("An inner exception cannot be null.");
-                }
-
-                _innerExceptions[i] = innerExceptions[i];
-            }
-        }
-
-        public Exception[] InnerExceptions
-        {
-            get
-            {
-                Exception[] copy = new Exception[_innerExceptions.Length];
-                Array.Copy(_innerExceptions, copy, copy.Length);
-                return copy;
-            }
-        }
-
-        public AggregateException Flatten()
-        {
-            Collections.Generic.List<Exception> flattened = new Collections.Generic.List<Exception>();
-            AddFlattenedExceptions(this, flattened);
-            return new AggregateException(Message, flattened.ToArray());
-        }
-
-        private static Exception GetFirstException(Exception[] exceptions)
-        {
-            if (exceptions == null || exceptions.Length == 0)
-            {
-                return null;
-            }
-
-            return exceptions[0];
-        }
-
-        private static void AddFlattenedExceptions(AggregateException aggregate, Collections.Generic.List<Exception> result)
-        {
-            for (int i = 0; i < aggregate._innerExceptions.Length; i++)
-            {
-                AggregateException nested = aggregate._innerExceptions[i] as AggregateException;
-                if (nested == null)
-                {
-                    result.Add(aggregate._innerExceptions[i]);
-                }
-                else
-                {
-                    AddFlattenedExceptions(nested, result);
-                }
-            }
-        }
-    }
 }

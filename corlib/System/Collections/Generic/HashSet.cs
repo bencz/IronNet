@@ -349,9 +349,14 @@ namespace System.Collections.Generic
             _version++;
         }
 
-        public IEnumerator<T> GetEnumerator()
+        public Enumerator GetEnumerator()
         {
             return new Enumerator(this);
+        }
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -504,7 +509,7 @@ namespace System.Collections.Generic
             }
         }
 
-        private struct Enumerator : IEnumerator<T>
+        public struct Enumerator : IEnumerator<T>
         {
             private readonly HashSet<T> _set;
             private readonly int _version;
@@ -520,7 +525,18 @@ namespace System.Collections.Generic
             }
 
             public T Current => _current;
-            object IEnumerator.Current => Current;
+            object IEnumerator.Current
+            {
+                get
+                {
+                    if (_index == 0 || _index == _set._lastIndex + 1)
+                    {
+                        throw new InvalidOperationException("Enumeration has not started or has already finished.");
+                    }
+
+                    return _current;
+                }
+            }
 
             public bool MoveNext()
             {
@@ -537,6 +553,7 @@ namespace System.Collections.Generic
                     _index++;
                 }
 
+                _index = _set._lastIndex + 1;
                 _current = default(T);
                 return false;
             }

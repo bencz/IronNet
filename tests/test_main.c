@@ -491,6 +491,128 @@ TEST(atomics)
 }
 
 /* ============================================================================
+ * Protected Control Flow Tests
+ * ============================================================================ */
+
+static iron_interp_result_t execute_control_flow_instruction(const iron_u8 *code, iron_u32 code_size, iron_u32 *offset)
+{
+    iron_thread_context_t thread;
+    iron_stack_frame_t frame;
+    iron_interp_result_t result;
+
+    memset(&thread, 0, sizeof(thread));
+    memset(&frame, 0, sizeof(frame));
+    frame.code = code;
+    frame.code_size = code_size;
+    frame.ip = *offset;
+    thread.current_frame = &frame;
+
+    result = iron_exec_instruction(&thread);
+    *offset = frame.ip;
+    return result;
+}
+
+TEST(leave_full_width_displacement)
+{
+    static iron_u8 code[70006];
+    iron_u32 offset;
+
+    code[0] = IRON_CEE_LEAVE;
+    iron_write_u32_le(code + 1, 70000);
+    offset = 0;
+    ASSERT_EQ(execute_control_flow_instruction(code, sizeof(code), &offset), IRON_INTERP_OK);
+    ASSERT_EQ(offset, 70005);
+
+    code[70000] = IRON_CEE_LEAVE;
+    iron_write_u32_le(code + 70001, (iron_u32)(iron_i32)-70005);
+    offset = 70000;
+    ASSERT_EQ(execute_control_flow_instruction(code, sizeof(code), &offset), IRON_INTERP_OK);
+    ASSERT_EQ(offset, 0);
+}
+
+TEST(leave_operand_validation)
+{
+    iron_u8 code[5] = { IRON_CEE_LEAVE, 0, 0, 0, 0 };
+    iron_u32 offset;
+    iron_u32 length;
+
+    for (length = 1; length < sizeof(code); length++) {
+        offset = 0;
+        ASSERT_EQ(execute_control_flow_instruction(code, length, &offset), IRON_INTERP_ERROR);
+    }
+
+    offset = 0;
+    ASSERT_EQ(execute_control_flow_instruction(code, sizeof(code), &offset), IRON_INTERP_ERROR);
+
+    iron_write_u32_le(code + 1, (iron_u32)(iron_i32)-6);
+    ASSERT_EQ(execute_control_flow_instruction(code, sizeof(code), &offset), IRON_INTERP_ERROR);
+
+    code[0] = IRON_CEE_LEAVE_S;
+    ASSERT_EQ(execute_control_flow_instruction(code, 1, &offset), IRON_INTERP_ERROR);
+
+    code[1] = 3;
+    ASSERT_EQ(execute_control_flow_instruction(code, sizeof(code), &offset), IRON_INTERP_ERROR);
+}
+
+TEST(endfinally_requires_active_handler)
+{
+    const iron_u8 code[] = { IRON_CEE_ENDFINALLY };
+    iron_u32 offset;
+
+    offset = 0;
+    ASSERT_EQ(execute_control_flow_instruction(code, sizeof(code), &offset), IRON_INTERP_ERROR);
+}
+
+TEST(fault_preserves_suspended_exception)
+{
+    const iron_u8 code[] = { IRON_CEE_NOP, IRON_CEE_ENDFINALLY };
+    iron_thread_context_t thread;
+    iron_exec_context_t context;
+    iron_stack_frame_t frame;
+    iron_runtime_method_t method;
+    iron_method_body_t body;
+    iron_exception_clause_t clause;
+    iron_exception_t exception;
+    iron_bool entered;
+    iron_interp_result_t result;
+
+    memset(&thread, 0, sizeof(thread));
+    memset(&context, 0, sizeof(context));
+    memset(&frame, 0, sizeof(frame));
+    memset(&method, 0, sizeof(method));
+    memset(&body, 0, sizeof(body));
+    memset(&clause, 0, sizeof(clause));
+    memset(&exception, 0, sizeof(exception));
+
+    context.allocator = iron_system_allocator();
+    thread.exec_ctx = &context;
+    thread.current_frame = &frame;
+    thread.exception_state.current_exception = &exception;
+    frame.method = &method;
+    frame.code = code;
+    frame.code_size = sizeof(code);
+    method.body = &body;
+    body.exceptions = &clause;
+    body.exception_count = 1;
+    clause.flags = IRON_EX_CLAUSE_FAULT;
+    clause.try_length = 1;
+    clause.handler_offset = 1;
+    clause.handler_length = 1;
+
+    entered = iron_exec_enter_finally(&thread, 0, 0, 0, &exception);
+    ASSERT(entered);
+    ASSERT_EQ(thread.exception_state.current_exception, NULL);
+    ASSERT_EQ(frame.finally_continuation->exception, &exception);
+
+    result = iron_exec_instruction(&thread);
+    iron_exec_discard_finally(&thread, UINT32_MAX);
+    ASSERT_EQ(result, IRON_INTERP_EXCEPTION);
+    ASSERT_EQ(thread.exception_state.current_exception, &exception);
+    ASSERT_EQ(frame.finally_continuation, NULL);
+    ASSERT_EQ(frame.flags & IRON_FRAME_FINALLY, 0);
+}
+
+/* ============================================================================
  * Main
  * ============================================================================ */
 
@@ -527,6 +649,10 @@ int main(void)
     
     printf("Stack Tests:\n");
     RUN_TEST(eval_stack);
+    RUN_TEST(leave_full_width_displacement);
+    RUN_TEST(leave_operand_validation);
+    RUN_TEST(endfinally_requires_active_handler);
+    RUN_TEST(fault_preserves_suspended_exception);
     printf("\n");
     
     printf("Threading Tests:\n");

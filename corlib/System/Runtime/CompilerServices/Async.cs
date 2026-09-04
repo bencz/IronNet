@@ -70,21 +70,12 @@ namespace System.Runtime.CompilerServices
 
         public void OnCompleted(Action continuation)
         {
-            ValidateContinuation(continuation);
-            _task.ContinueWith(ignored => continuation());
+            _task.RegisterAwaitContinuation(continuation, true);
         }
 
         public void UnsafeOnCompleted(Action continuation)
         {
             OnCompleted(continuation);
-        }
-
-        private static void ValidateContinuation(Action continuation)
-        {
-            if (continuation == null)
-            {
-                throw new ArgumentNullException("continuation");
-            }
         }
     }
 
@@ -111,7 +102,7 @@ namespace System.Runtime.CompilerServices
                 throw new ArgumentNullException("continuation");
             }
 
-            _task.ContinueWith(ignored => continuation());
+            _task.RegisterAwaitContinuation(continuation, true);
         }
 
         public void UnsafeOnCompleted(Action continuation)
@@ -123,24 +114,28 @@ namespace System.Runtime.CompilerServices
     public struct ConfiguredTaskAwaitable
     {
         private readonly Task _task;
+        private readonly bool _continueOnCapturedContext;
 
         internal ConfiguredTaskAwaitable(Task task, bool continueOnCapturedContext)
         {
             _task = task;
+            _continueOnCapturedContext = continueOnCapturedContext;
         }
 
         public ConfiguredTaskAwaiter GetAwaiter()
         {
-            return new ConfiguredTaskAwaiter(_task);
+            return new ConfiguredTaskAwaiter(_task, _continueOnCapturedContext);
         }
 
         public struct ConfiguredTaskAwaiter : ICriticalNotifyCompletion
         {
             private readonly Task _task;
+            private readonly bool _continueOnCapturedContext;
 
-            internal ConfiguredTaskAwaiter(Task task)
+            internal ConfiguredTaskAwaiter(Task task, bool continueOnCapturedContext)
             {
                 _task = task;
+                _continueOnCapturedContext = continueOnCapturedContext;
             }
 
             public bool IsCompleted => _task.IsCompleted;
@@ -152,12 +147,12 @@ namespace System.Runtime.CompilerServices
 
             public void OnCompleted(Action continuation)
             {
-                _task.GetAwaiter().OnCompleted(continuation);
+                _task.RegisterAwaitContinuation(continuation, _continueOnCapturedContext);
             }
 
             public void UnsafeOnCompleted(Action continuation)
             {
-                _task.GetAwaiter().UnsafeOnCompleted(continuation);
+                _task.RegisterAwaitContinuation(continuation, _continueOnCapturedContext);
             }
         }
     }
@@ -165,24 +160,28 @@ namespace System.Runtime.CompilerServices
     public struct ConfiguredTaskAwaitable<TResult>
     {
         private readonly Task<TResult> _task;
+        private readonly bool _continueOnCapturedContext;
 
         internal ConfiguredTaskAwaitable(Task<TResult> task, bool continueOnCapturedContext)
         {
             _task = task;
+            _continueOnCapturedContext = continueOnCapturedContext;
         }
 
         public ConfiguredTaskAwaiter GetAwaiter()
         {
-            return new ConfiguredTaskAwaiter(_task);
+            return new ConfiguredTaskAwaiter(_task, _continueOnCapturedContext);
         }
 
         public struct ConfiguredTaskAwaiter : ICriticalNotifyCompletion
         {
             private readonly Task<TResult> _task;
+            private readonly bool _continueOnCapturedContext;
 
-            internal ConfiguredTaskAwaiter(Task<TResult> task)
+            internal ConfiguredTaskAwaiter(Task<TResult> task, bool continueOnCapturedContext)
             {
                 _task = task;
+                _continueOnCapturedContext = continueOnCapturedContext;
             }
 
             public bool IsCompleted => _task.IsCompleted;
@@ -194,12 +193,12 @@ namespace System.Runtime.CompilerServices
 
             public void OnCompleted(Action continuation)
             {
-                _task.GetAwaiter().OnCompleted(continuation);
+                _task.RegisterAwaitContinuation(continuation, _continueOnCapturedContext);
             }
 
             public void UnsafeOnCompleted(Action continuation)
             {
-                _task.GetAwaiter().UnsafeOnCompleted(continuation);
+                _task.RegisterAwaitContinuation(continuation, _continueOnCapturedContext);
             }
         }
     }
@@ -226,9 +225,7 @@ namespace System.Runtime.CompilerServices
                     throw new ArgumentNullException("continuation");
                 }
 
-                Thread thread = new Thread(() => continuation());
-                thread.IsBackground = true;
-                thread.Start();
+                new AsyncContinuation(continuation, true).Schedule();
             }
 
             public void UnsafeOnCompleted(Action continuation)
@@ -279,7 +276,7 @@ namespace System.Runtime.CompilerServices
 
         public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine
         {
-            stateMachine.MoveNext();
+            AsyncContinuation.Start(ref stateMachine);
         }
 
         public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine)
@@ -340,7 +337,7 @@ namespace System.Runtime.CompilerServices
 
         public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine
         {
-            stateMachine.MoveNext();
+            AsyncContinuation.Start(ref stateMachine);
         }
 
         public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine)
@@ -474,7 +471,7 @@ namespace System.Runtime.CompilerServices
 
         public void OnCompleted(Action continuation)
         {
-            _value.OnCompleted(continuation, false);
+            _value.OnCompleted(continuation, true);
         }
 
         public void UnsafeOnCompleted(Action continuation)
@@ -501,7 +498,7 @@ namespace System.Runtime.CompilerServices
 
         public void OnCompleted(Action continuation)
         {
-            _value.OnCompleted(continuation, false);
+            _value.OnCompleted(continuation, true);
         }
 
         public void UnsafeOnCompleted(Action continuation)
@@ -512,13 +509,38 @@ namespace System.Runtime.CompilerServices
 
     public struct AsyncVoidMethodBuilder
     {
+        private SynchronizationContext _context;
+
         public static AsyncVoidMethodBuilder Create()
         {
-            return new AsyncVoidMethodBuilder();
+            AsyncVoidMethodBuilder builder = new AsyncVoidMethodBuilder();
+            builder._context = SynchronizationContext.Current;
+            if (builder._context != null)
+            {
+                builder._context.OperationStarted();
+            }
+
+            return builder;
         }
 
         public void SetResult()
         {
+            NotifyCompletion();
+        }
+
+        private void NotifyCompletion()
+        {
+            if (_context != null)
+            {
+                try
+                {
+                    _context.OperationCompleted();
+                }
+                catch (Exception exception)
+                {
+                    AsyncContinuation.ThrowAsync(exception, null);
+                }
+            }
         }
 
         public void SetException(Exception exception)
@@ -528,7 +550,14 @@ namespace System.Runtime.CompilerServices
                 throw new ArgumentNullException("exception");
             }
 
-            throw exception;
+            try
+            {
+                AsyncContinuation.ThrowAsync(exception, _context);
+            }
+            finally
+            {
+                NotifyCompletion();
+            }
         }
 
         public void SetStateMachine(IAsyncStateMachine stateMachine)
@@ -541,7 +570,7 @@ namespace System.Runtime.CompilerServices
 
         public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine
         {
-            stateMachine.MoveNext();
+            AsyncContinuation.Start(ref stateMachine);
         }
 
         public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine)

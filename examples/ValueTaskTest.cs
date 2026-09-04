@@ -92,7 +92,7 @@ internal static class ValueTaskTest
         }
         catch (AggregateException exception)
         {
-            failurePreserved = exception.InnerExceptions.Length == 1 && object.ReferenceEquals(exception.InnerExceptions[0], failure);
+            failurePreserved = exception.InnerExceptions.Count == 1 && object.ReferenceEquals(exception.InnerExceptions[0], failure);
         }
 
         Require(failurePreserved, "An async ValueTask did not preserve its exception.");

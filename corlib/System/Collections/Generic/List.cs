@@ -3,7 +3,7 @@ namespace System.Collections.Generic
     /// <summary>
     /// Represents a strongly typed list of objects that can be accessed by index.
     /// </summary>
-    public class List<T> : IList<T>, IList
+    public class List<T> : IList<T>, IList, IReadOnlyList<T>
     {
         private const int DefaultCapacity = 4;
 
@@ -59,6 +59,11 @@ namespace System.Collections.Generic
         }
 
         public int Count => _size;
+
+        public ObjectModel.ReadOnlyCollection<T> AsReadOnly()
+        {
+            return new ObjectModel.ReadOnlyCollection<T>(this);
+        }
 
         public int Capacity
         {
@@ -509,9 +514,14 @@ namespace System.Collections.Generic
             }
         }
 
-        public IEnumerator<T> GetEnumerator()
+        public Enumerator GetEnumerator()
         {
             return new Enumerator(this);
+        }
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -640,7 +650,7 @@ namespace System.Collections.Generic
             }
         }
 
-        private struct Enumerator : IEnumerator<T>
+        public struct Enumerator : IEnumerator<T>
         {
             private readonly List<T> _list;
             private readonly int _version;
@@ -655,7 +665,9 @@ namespace System.Collections.Generic
                 _current = default(T);
             }
 
-            public T Current
+            public T Current => _current;
+
+            object IEnumerator.Current
             {
                 get
                 {
@@ -667,8 +679,6 @@ namespace System.Collections.Generic
                     return _current;
                 }
             }
-
-            object IEnumerator.Current => Current;
 
             public bool MoveNext()
             {

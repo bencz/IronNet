@@ -179,9 +179,14 @@ namespace System.Collections.Generic
             }
         }
 
-        public IEnumerator<T> GetEnumerator()
+        public Enumerator GetEnumerator()
         {
             return new Enumerator(this);
+        }
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -207,7 +212,7 @@ namespace System.Collections.Generic
             }
         }
 
-        private struct Enumerator : IEnumerator<T>
+        public struct Enumerator : IEnumerator<T>
         {
             private readonly Stack<T> _stack;
             private readonly int _version;
@@ -240,6 +245,11 @@ namespace System.Collections.Generic
             public bool MoveNext()
             {
                 EnsureUnmodified();
+                if (_index == -1)
+                {
+                    return false;
+                }
+
                 if (_index == -2)
                 {
                     _index = _stack._size - 1;
@@ -255,6 +265,7 @@ namespace System.Collections.Generic
                     return true;
                 }
 
+                _index = -1;
                 _current = default(T);
                 return false;
             }
@@ -268,6 +279,8 @@ namespace System.Collections.Generic
 
             public void Dispose()
             {
+                _index = -1;
+                _current = default(T);
             }
 
             private void EnsureUnmodified()

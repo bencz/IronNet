@@ -674,12 +674,17 @@ static void gc_mark_thread_roots(iron_gc_t *gc, iron_thread_context_t *thread)
     }
 
     for (frame = thread->current_frame; frame; frame = frame->prev) {
+        iron_finally_continuation_t *continuation;
+
         IRON_TRACE_GC("MARK_ROOTS: frame method=%s args=%u locals=%u",
                       frame->method ? frame->method->name : "?",
                       frame->arg_count,
                       frame->local_count);
 
         iron_gc_mark(gc, frame->filter_exception);
+        for (continuation = frame->finally_continuation; continuation; continuation = continuation->previous) {
+            iron_gc_mark(gc, continuation->exception);
+        }
 
         for (index = 0; frame->args && index < frame->arg_count; index++) {
             gc_mark_stack_value(gc, &frame->args[index]);

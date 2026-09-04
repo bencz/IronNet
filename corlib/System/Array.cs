@@ -5,8 +5,81 @@ namespace System
     /// <summary>
     /// Provides methods for creating, manipulating, searching, and sorting arrays
     /// </summary>
-    public abstract class Array : Collections.IEnumerable
+    public abstract class Array : ICloneable, Collections.IList
     {
+        int Collections.ICollection.Count => Length;
+
+        public bool IsReadOnly => false;
+        public bool IsFixedSize => true;
+        public bool IsSynchronized => false;
+        public object SyncRoot => this;
+
+        object Collections.IList.this[int index]
+        {
+            get => GetValue(index);
+            set => SetValue(value, index);
+        }
+
+        int Collections.IList.Add(object value)
+        {
+            throw new NotSupportedException("Collection was of a fixed size.");
+        }
+
+        void Collections.IList.Clear()
+        {
+            Clear(this, GetLowerBound(0), Length);
+        }
+
+        bool Collections.IList.Contains(object value)
+        {
+            return IndexOf(this, value) >= GetLowerBound(0);
+        }
+
+        int Collections.IList.IndexOf(object value)
+        {
+            return IndexOf(this, value);
+        }
+
+        void Collections.IList.Insert(int index, object value)
+        {
+            throw new NotSupportedException("Collection was of a fixed size.");
+        }
+
+        void Collections.IList.Remove(object value)
+        {
+            throw new NotSupportedException("Collection was of a fixed size.");
+        }
+
+        void Collections.IList.RemoveAt(int index)
+        {
+            throw new NotSupportedException("Collection was of a fixed size.");
+        }
+
+        public object Clone()
+        {
+            return MemberwiseClone();
+        }
+
+        public void CopyTo(Array array, int index)
+        {
+            if (array != null && array.Rank != 1)
+            {
+                throw new ArgumentException("The destination array must be one-dimensional.");
+            }
+
+            Copy(this, GetLowerBound(0), array, index, Length);
+        }
+
+        public void CopyTo(Array array, long index)
+        {
+            if (index < int.MinValue || index > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException("index");
+            }
+
+            CopyTo(array, (int)index);
+        }
+
         /// <summary>
         /// Gets the total number of elements in all the dimensions of the Array
         /// </summary>
@@ -20,6 +93,16 @@ namespace System
         /// Gets a 64-bit integer that represents the total number of elements
         /// </summary>
         public long LongLength => Length;
+
+        public static Collections.ObjectModel.ReadOnlyCollection<T> AsReadOnly<T>(T[] array)
+        {
+            if (array == null)
+            {
+                throw new ArgumentNullException("array");
+            }
+
+            return new Collections.ObjectModel.ReadOnlyCollection<T>(array);
+        }
 
         /// <summary>
         /// Gets the rank (number of dimensions) of the Array
@@ -122,19 +205,54 @@ namespace System
             {
                 throw new ArgumentNullException("array");
             }
-            for (int i = 0; i < array.Length; i++)
+
+            return IndexOf(array, value, array.GetLowerBound(0), array.Length);
+        }
+
+        public static int IndexOf(Array array, object value, int startIndex)
+        {
+            if (array == null)
             {
-                object element = array.GetValue(i);
-                if (element == null && value == null)
+                throw new ArgumentNullException("array");
+            }
+
+            int count = unchecked(array.Length - startIndex + array.GetLowerBound(0));
+            return IndexOf(array, value, startIndex, count);
+        }
+
+        public static int IndexOf(Array array, object value, int startIndex, int count)
+        {
+            if (array == null)
+            {
+                throw new ArgumentNullException("array");
+            }
+            if (array.Rank != 1)
+            {
+                throw new RankException("Only one-dimensional arrays are supported.");
+            }
+
+            int lowerBound = array.GetLowerBound(0);
+            long offset = (long)startIndex - lowerBound;
+            if (offset < 0 || offset > array.Length)
+            {
+                throw new ArgumentOutOfRangeException("startIndex");
+            }
+            if (count < 0 || count > array.Length - offset)
+            {
+                throw new ArgumentOutOfRangeException("count");
+            }
+
+            for (int position = 0; position < count; position++)
+            {
+                int index = (int)((long)startIndex + position);
+                object element = array.GetValue(index);
+                if (element == null ? value == null : element.Equals(value))
                 {
-                    return i;
-                }
-                if (element != null && element.Equals(value))
-                {
-                    return i;
+                    return index;
                 }
             }
-            return -1;
+
+            return unchecked(lowerBound - 1);
         }
 
         /// <summary>
@@ -146,15 +264,42 @@ namespace System
             {
                 throw new ArgumentNullException("array");
             }
-            int i = 0;
-            int j = array.Length - 1;
-            while (i < j)
+
+            Reverse(array, array.GetLowerBound(0), array.Length);
+        }
+
+        public static void Reverse(Array array, int index, int length)
+        {
+            if (array == null)
             {
-                object temp = array.GetValue(i);
-                array.SetValue(array.GetValue(j), i);
-                array.SetValue(temp, j);
-                i++;
-                j--;
+                throw new ArgumentNullException("array");
+            }
+
+            long offset = (long)index - array.GetLowerBound(0);
+            if (offset < 0)
+            {
+                throw new ArgumentOutOfRangeException("index");
+            }
+            if (length < 0)
+            {
+                throw new ArgumentOutOfRangeException("length");
+            }
+            if (offset > array.Length || length > array.Length - offset)
+            {
+                throw new ArgumentException("The range exceeds the array bounds.");
+            }
+            if (array.Rank != 1)
+            {
+                throw new RankException("Only one-dimensional arrays are supported.");
+            }
+
+            for (int position = 0; position < length / 2; position++)
+            {
+                int left = (int)((long)index + position);
+                int right = (int)((long)index + length - position - 1);
+                object value = array.GetValue(left);
+                array.SetValue(array.GetValue(right), left);
+                array.SetValue(value, right);
             }
         }
 

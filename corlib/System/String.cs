@@ -12,6 +12,31 @@ namespace System
         /// </summary>
         public static readonly string Empty = "";
 
+        public bool Contains(string value)
+        {
+            if (value == null)
+            {
+                throw new ArgumentNullException("value");
+            }
+
+            int lastStart = Length - value.Length;
+            for (int start = 0; start <= lastStart; start++)
+            {
+                int index = 0;
+                while (index < value.Length && this[start + index] == value[index])
+                {
+                    index++;
+                }
+
+                if (index == value.Length)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // Required constructors for compiler
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern String(char c, int count);

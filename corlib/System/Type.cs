@@ -433,9 +433,22 @@ namespace System
         /// </summary>
         public override bool Equals(object obj)
         {
-            if (obj is Type other)
-                return this == other;
-            return false;
+            return obj is Type && Equals((Type)obj);
+        }
+
+        public virtual bool Equals(Type other)
+        {
+            return object.ReferenceEquals(this, other);
+        }
+
+        public static bool operator ==(Type left, Type right)
+        {
+            return object.ReferenceEquals(left, right) || ((object)left != null && left.Equals(right));
+        }
+
+        public static bool operator !=(Type left, Type right)
+        {
+            return !(left == right);
         }
 
         /// <summary>

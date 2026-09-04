@@ -105,103 +105,20 @@ namespace System.Threading
     /// <summary>
     /// Notifies one or more waiting threads that an event has occurred
     /// </summary>
-    public class ManualResetEvent : WaitHandle
+    public sealed class ManualResetEvent : EventWaitHandle
     {
-        private readonly object _gate = new object();
-        private bool _signaled;
-
-        public ManualResetEvent(bool initialState)
+        public ManualResetEvent(bool initialState) : base(initialState, EventResetMode.ManualReset)
         {
-            _signaled = initialState;
-        }
-
-        public bool Set()
-        {
-            Monitor.Enter(_gate);
-            _signaled = true;
-            Monitor.PulseAll(_gate);
-            Monitor.Exit(_gate);
-            return true;
-        }
-
-        public bool Reset()
-        {
-            Monitor.Enter(_gate);
-            _signaled = false;
-            Monitor.Exit(_gate);
-            return true;
-        }
-
-        public override bool WaitOne(int millisecondsTimeout)
-        {
-            ValidateTimeout(millisecondsTimeout);
-            int start = Environment.TickCount;
-
-            Monitor.Enter(_gate);
-            while (!_signaled)
-            {
-                int remaining = RemainingTimeout(start, millisecondsTimeout);
-                if (remaining == 0 || !Monitor.Wait(_gate, remaining))
-                {
-                    Monitor.Exit(_gate);
-                    return false;
-                }
-            }
-
-            Monitor.Exit(_gate);
-            return true;
         }
     }
 
     /// <summary>
     /// Represents a thread synchronization event that resets automatically
     /// </summary>
-    public class AutoResetEvent : WaitHandle
+    public sealed class AutoResetEvent : EventWaitHandle
     {
-        private readonly object _gate = new object();
-        private bool _signaled;
-
-        public AutoResetEvent(bool initialState)
+        public AutoResetEvent(bool initialState) : base(initialState, EventResetMode.AutoReset)
         {
-            _signaled = initialState;
-        }
-
-        public bool Set()
-        {
-            Monitor.Enter(_gate);
-            _signaled = true;
-            Monitor.Pulse(_gate);
-            Monitor.Exit(_gate);
-            return true;
-        }
-
-        public bool Reset()
-        {
-            Monitor.Enter(_gate);
-            _signaled = false;
-            Monitor.Exit(_gate);
-            return true;
-        }
-
-        public override bool WaitOne(int millisecondsTimeout)
-        {
-            ValidateTimeout(millisecondsTimeout);
-            int start = Environment.TickCount;
-
-            Monitor.Enter(_gate);
-            while (!_signaled)
-            {
-                int remaining = RemainingTimeout(start, millisecondsTimeout);
-                if (remaining == 0 || !Monitor.Wait(_gate, remaining))
-                {
-                    Monitor.Exit(_gate);
-                    return false;
-                }
-            }
-
-            _signaled = false;
-            Monitor.Exit(_gate);
-            return true;
         }
     }
 

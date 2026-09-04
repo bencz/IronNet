@@ -83,6 +83,15 @@ typedef enum iron_frame_flags {
     IRON_FRAME_FILTER_REJECTED = 0x20 /* Resume handler search after a false filter */
 } iron_frame_flags_t;
 
+/* A finally can itself contain protected regions, so continuations must nest. */
+typedef struct iron_finally_continuation {
+    struct iron_finally_continuation *previous;
+    iron_exception_t *exception;
+    iron_u32 handler_index;
+    iron_u32 leave_offset;
+    iron_u32 leave_target;
+} iron_finally_continuation_t;
+
 /* Stack frame */
 struct iron_stack_frame {
     /* Method being executed */
@@ -107,9 +116,7 @@ struct iron_stack_frame {
     iron_u32 exception_search_offset;
     iron_u32 exception_filter_try_length;
     iron_exception_t *filter_exception;
-    iron_u32 leave_target;
-    iron_u32 leave_search_offset;
-    iron_u32 leave_finally_try_length;
+    iron_finally_continuation_t *finally_continuation;
     
     /* Flags and prefixes */
     iron_u32 flags;
@@ -309,6 +316,11 @@ IRON_API iron_result_t iron_exec_invoke_delegate(iron_thread_context_t *thread,
 /* Execute a single instruction */
 IRON_API iron_interp_result_t iron_exec_instruction(iron_thread_context_t *thread);
 
+/* Enter a finally/fault or discard continuations exited by exception dispatch. */
+IRON_API iron_bool iron_exec_enter_finally(iron_thread_context_t *thread, iron_u32 handler_index,
+                                           iron_u32 leave_offset, iron_u32 leave_target, iron_exception_t *exception);
+IRON_API void iron_exec_discard_finally(iron_thread_context_t *thread, iron_u32 target_offset);
+
 /* Execute until return or exception */
 IRON_API iron_result_t iron_exec_run(iron_thread_context_t *thread);
 
@@ -335,9 +347,10 @@ IRON_API iron_bool iron_stack_value_store_to_storage(void *owner,
                                                       void *storage,
                                                       iron_runtime_type_t *type,
                                                       const iron_stack_value_t *value);
-IRON_API void *iron_stack_value_box(iron_exec_context_t *ctx,
-                                     iron_runtime_type_t *type,
-                                     const iron_stack_value_t *value);
+IRON_API iron_bool iron_stack_value_box(iron_exec_context_t *ctx, iron_runtime_type_t *type,
+                                        const iron_stack_value_t *value, void **result);
+IRON_API iron_bool iron_box_storage_value(iron_exec_context_t *ctx, iron_runtime_type_t *type, const void *storage, void **result);
+IRON_API iron_result_t iron_nullable_unbox(iron_exec_context_t *ctx, iron_runtime_type_t *type, void *object, iron_stack_value_t *result);
 
 /* Call method (creates new frame) */
 IRON_API iron_result_t iron_exec_call(iron_thread_context_t *thread,

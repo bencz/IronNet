@@ -57,6 +57,7 @@ static const char *g_error_messages[] = {
     "Stack underflow",
     "Null reference exception",
     "Invalid cast exception",
+    "Array rank exception",
     "Index out of range exception",
     "Divide by zero exception",
     "Arithmetic overflow exception",

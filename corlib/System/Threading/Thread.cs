@@ -14,6 +14,8 @@ namespace System.Threading
         private bool _started;
         private static int _nextId = 2;
 
+        internal SynchronizationContext SynchronizationContext { get; set; }
+
         public Thread(ThreadStart start)
         {
             _start = start ?? throw new ArgumentNullException("start");
